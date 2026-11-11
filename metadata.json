@@ -1,6 +1,0 @@
-{
-  "name": "DENISH Mobile Repairing and Service",
-  "description": "Official repair hub for DENISH Mobile Repairing and Service. High-precision smartphone diagnostic lab, authentic spares, instant price estimation, real-time order tracking, and express repair care.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

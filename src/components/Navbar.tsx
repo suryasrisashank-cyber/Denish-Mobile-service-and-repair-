@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { 
   Phone, 
@@ -6,28 +8,22 @@ import {
   Moon, 
   Laptop, 
   Menu, 
-  X, 
-  ShieldCheck, 
-  Clock, 
-  Wrench,
-  Search,
-  Lock
+  X
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { BUSINESS_INFO } from '../data/constants';
 
 interface NavbarProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  onOpenAdmin: () => void;
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenAdmin }) => {
+export const Navbar: React.FC<NavbarProps> = ({ activeTab = "home", setActiveTab }) => {
   const { theme, setTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNavClick = (tabId: string) => {
-    setActiveTab(tabId);
+    if (typeof setActiveTab === "function") setActiveTab(tabId);
     setMobileMenuOpen(false);
     
     // Smooth scroll to target section if on home
@@ -82,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           className="flex items-center gap-3 text-left group focus:outline-none"
         >
           <img 
-            src="/assets/aistudio/1794372520460_a1d82598.png" 
+            src="/assets/denish-logo-icon.png" 
             alt="DENISH Mobile Repairing and Service Logo" 
             className="w-11 h-11 object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
           />
@@ -102,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
         </button>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+        <nav aria-label="Main Navigation" className="hidden lg:flex items-center gap-1 xl:gap-2">
           <button
             onClick={() => handleNavClick('home')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
@@ -131,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
-            Price Estimator
+            Service Enquiry
           </button>
           <button
             onClick={() => handleNavClick('book')}
@@ -162,17 +158,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             }`}
           >
             Contact
-          </button>
-          <button
-            onClick={onOpenAdmin}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === 'admin'
-                ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40'
-                : 'text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5 text-amber-500" />
-            <span>Admin</span>
           </button>
         </nav>
 
@@ -231,8 +216,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            aria-label="Toggle Navigation Menu"
-            className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
+            aria-label="Toggle navigation menu"
+            className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -258,7 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             onClick={() => handleNavClick('estimator')}
             className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            Price Estimator
+            Service Enquiry
           </button>
           <button
             onClick={() => handleNavClick('book')}
@@ -277,16 +262,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
             className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             Workshop & Timings
-          </button>
-          <button
-            onClick={() => {
-              setMobileMenuOpen(false);
-              onOpenAdmin();
-            }}
-            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2"
-          >
-            <Lock className="w-4 h-4" />
-            <span>Admin Portal</span>
           </button>
 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
@@ -312,3 +287,5 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenA
     </header>
   );
 };
+
+export default Navbar;

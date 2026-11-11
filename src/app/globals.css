@@ -1,0 +1,211 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800&family=Playball&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200");
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: rgba(247, 249, 252, 0.78);
+    --bg-page-glass: rgba(247, 249, 252, 0.85);
+    --text-primary: #101827;
+    --text-muted: #475569;
+    --bg-card: rgba(255, 255, 255, 0.94);
+    --border-color: #E2E8F0;
+    --brand-blue: #126FE5;
+  }
+
+  .dark {
+    --bg-page: rgba(11, 17, 32, 0.80);
+    --bg-page-glass: rgba(11, 17, 32, 0.88);
+    --text-primary: #F8FAFC;
+    --text-muted: #94A3B8;
+    --bg-card: rgba(30, 41, 59, 0.92);
+    --border-color: rgba(51, 65, 85, 0.85);
+    --brand-blue: #126FE5;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    background-color: #F7F9FC;
+    color-scheme: light;
+  }
+
+  html.dark,
+  .dark html {
+    background-color: #0B1120;
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Accessibility Focus Ring */
+*:focus-visible {
+  outline: 2px solid #1689E8 !important;
+  outline-offset: 2px !important;
+}
+
+/* Safe Area Insets for Modern Mobile Browsers */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1689E8;
+}
+
+/* Clean, high-contrast button utilities */
+.metallic-gold-text {
+  background: linear-gradient(135deg, #fff2be 0%, #f5c344 35%, #ffd363 50%, #996e00 85%, #fbe897 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 30px rgba(245, 195, 68, 0.25);
+}
+.metallic-silver-text {
+  background: linear-gradient(135deg, #ffffff 0%, #d4d8e2 40%, #8590a6 75%, #ffffff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.neon-border-cyan {
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.4), inset 0 0 10px rgba(0, 229, 255, 0.2);
+}
+.neon-border-gold {
+  box-shadow: 0 0 15px rgba(245, 195, 68, 0.35), inset 0 0 8px rgba(245, 195, 68, 0.15);
+}
+.glow-bg-radial {
+  background: radial-gradient(circle at 50% 20%, rgba(245, 195, 68, 0.08) 0%, rgba(0, 229, 255, 0.05) 35%, transparent 70%);
+}
+
+.btn-primary {
+  background-color: #126FE5;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary:hover {
+  background-color: #0F5EBE;
+  transform: translateY(-1px);
+}
+
+.btn-whatsapp {
+  background-color: #25D366;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-whatsapp:hover {
+  background-color: #20BD5A;
+  transform: translateY(-1px);
+}
+
+.btn-gold {
+  background-color: #126FE5;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-gold:hover {
+  background-color: #0F5EBE;
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-ghost:hover {
+  background-color: var(--border-color);
+}
+
+/* Theme color mappings for legacy and sub-page styling */
+.bg-surface-canvas {
+  background-color: var(--bg-page);
+}
+
+.bg-surface-container,
+.bg-surface-container-high {
+  background-color: var(--bg-card);
+}
+
+.bg-surface-container-lowest {
+  background-color: var(--bg-page);
+}
+
+.text-on-surface {
+  color: var(--text-primary);
+}
+
+.text-on-surface-variant {
+  color: var(--text-muted);
+}
+
+.text-primary {
+  color: var(--brand-blue);
+}
+
+.text-secondary {
+  color: var(--text-muted);
+}
+
+.border-outline,
+.border-outline-variant {
+  border-color: var(--border-color);
+}
+

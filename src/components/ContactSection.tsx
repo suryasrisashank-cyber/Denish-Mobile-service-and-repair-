@@ -1,5 +1,7 @@
+"use client";
+
 import React from 'react';
-import { Phone, MessageCircle, Clock, MapPin, CheckCircle, Navigation, ShieldCheck } from 'lucide-react';
+import { Phone, MessageCircle, Clock, MapPin, CheckCircle } from 'lucide-react';
 import { BUSINESS_INFO, DEVICE_BRANDS } from '../data/constants';
 
 export const ContactSection: React.FC = () => {
@@ -22,7 +24,7 @@ export const ContactSection: React.FC = () => {
                 </div>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Open 7 Days A Week
+                  Open 6 Days A Week (Mon – Sat)
                 </span>
               </div>
 
@@ -64,7 +66,7 @@ export const ContactSection: React.FC = () => {
               {/* Supported Brands Grid */}
               <div className="space-y-2 pt-2">
                 <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                  Supported Smartphone Brands
+                  <span id="device-brands">Supported Smartphone Brands</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {DEVICE_BRANDS.map((b) => (
@@ -82,6 +84,56 @@ export const ContactSection: React.FC = () => {
               </div>
             </div>
 
+            
+              {/* Technician Callback Form */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase">
+                  Request Instant Technician Callback
+                </div>
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    alert("Callback request registered. A technician will call you shortly.");
+                  }} 
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  <div>
+                    <label htmlFor="callbackName" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Your Name
+                    </label>
+                    <input
+                      id="callbackName"
+                      name="callbackName"
+                      type="text"
+                      placeholder="e.g. Rahul Sharma"
+                      required
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="callbackPhone" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Mobile Number
+                    </label>
+                    <input
+                      id="callbackPhone"
+                      name="callbackPhone"
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      required
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95"
+                    >
+                      Request Callback
+                    </button>
+                  </div>
+                </form>
+              </div>
+  
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
               <a

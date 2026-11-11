@@ -1,15 +1,17 @@
+"use client";
+
 import React from 'react';
 import { Home, Wrench, MessageCircle, Search, CalendarPlus } from 'lucide-react';
 import { BUSINESS_INFO } from '../data/constants';
 
 interface MobileBottomNavProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
 }
 
-export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, setActiveTab }) => {
+export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab = "home", setActiveTab }) => {
   const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
+    if (typeof setActiveTab === "function") setActiveTab(tabId);
     const el = document.getElementById(tabId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
@@ -19,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, set
   return (
     <nav 
       aria-label="Mobile Bottom Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 dark:bg-[#101820]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800 px-3 py-1 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.06)] h-15"
+      className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#101820]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800 px-3 py-1 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.06)] h-15"
     >
       <button
         type="button"
@@ -88,3 +90,5 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, set
     </nav>
   );
 };
+
+export default MobileBottomNav;

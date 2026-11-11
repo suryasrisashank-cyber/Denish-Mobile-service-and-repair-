@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { 
   CheckCircle2, 
@@ -7,9 +9,10 @@ import {
   Smartphone, 
   User, 
   Phone, 
-  HelpCircle, 
   Wrench,
-  ArrowRight
+  ArrowRight,
+  Copy,
+  Check
 } from 'lucide-react';
 import { CORE_SERVICES, DEVICE_BRANDS, BUSINESS_INFO } from '../data/constants';
 import { RepairOrder } from '../types';
@@ -33,12 +36,15 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [brand, setBrand] = useState(initialValues?.brand || DEVICE_BRANDS[0].label);
+  const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState(initialValues?.model || '');
   const [serviceType, setServiceType] = useState(initialValues?.serviceType || CORE_SERVICES[0].name);
+  const [customService, setCustomService] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [createdOrder, setCreatedOrder] = useState<RepairOrder | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   // Update when initialValues changes
   React.useEffect(() => {
@@ -52,20 +58,31 @@ export const BookingForm: React.FC<BookingFormProps> = ({
     setErrorMessage('');
 
     const cleanPhone = phone.replace(/\D/g, '');
-    if (!customerName.trim()) {
-      setErrorMessage('Please enter your full name.');
+    if (!customerName.trim() || customerName.trim().length < 2) {
+      setErrorMessage('Please enter your full name (minimum 2 characters).');
       return;
     }
     if (cleanPhone.length < 10) {
       setErrorMessage('Please enter a valid 10-digit mobile number.');
       return;
     }
+    if (brand.includes('Other') && !customBrand.trim()) {
+      setErrorMessage('Please enter your smartphone brand name.');
+      return;
+    }
     if (!model.trim()) {
       setErrorMessage('Please enter your smartphone model name.');
       return;
     }
+    if (serviceType.includes('Other') && !customService.trim()) {
+      setErrorMessage('Please specify the problem or repair service needed.');
+      return;
+    }
 
     setIsSubmitting(true);
+
+    const resolvedBrand = brand.includes('Other') && customBrand.trim() ? customBrand.trim() : brand.trim();
+    const resolvedService = serviceType.includes('Other') && customService.trim() ? customService.trim() : serviceType.trim();
 
     try {
       const response = await fetch('/api/orders', {
@@ -73,10 +90,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerName: customerName.trim(),
-          phone: phone.trim(),
-          brand: brand.trim(),
+          phone: cleanPhone,
+          brand: resolvedBrand,
+          customBrand: customBrand.trim() || undefined,
           model: model.trim(),
-          serviceType: serviceType.trim(),
+          serviceType: resolvedService,
+          customService: customService.trim() || undefined,
           issueDescription: issueDescription.trim() || undefined,
           estimatedPrice: initialValues?.estimatedPrice
         })
@@ -90,22 +109,36 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
       setCreatedOrder(data.order);
       onOrderCreated(data.order);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Network error occurred. Please try again.');
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Network error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const copyTrackingId = (id: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(id);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
+
   const getWhatsAppMessageUrl = (order: RepairOrder) => {
+    const trackingId = order.id || order.serviceId;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://denish-mobile-repair.vercel.app';
     const text = 
 `*NEW REPAIR BOOKING — DENISH MOBILE*
-Service ID / Phone: *${order.serviceId}*
+Tracking ID: *${trackingId}*
+Service ID / Mobile: *${order.serviceId}*
 Customer Name: *${order.customerName}*
 Device: *${order.brand} - ${order.model}*
 Service Required: *${order.serviceType}*
 Issue Symptoms: ${order.issueDescription}
 Booking Date: ${new Date(order.createdAt).toLocaleDateString('en-IN')}
+
+Track status online:
+${origin}/track?id=${trackingId}
 
 Hello Denish Workshop, I have submitted this repair booking on your website. Please inspect and confirm technician availability.`;
     return `https://wa.me/${BUSINESS_INFO.whatsappNumber}?text=${encodeURIComponent(text)}`;
@@ -125,7 +158,7 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
               Book a Workshop Repair
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-              Your mobile number acts as your official <strong>Service ID</strong>. Receive live updates, priority technician workbench queue, and 6-month spares warranty.
+              Your mobile number acts as your official <strong>Service ID</strong>. Receive live updates, transparent tracking, and priority technician workbench queue.
             </p>
           </div>
 
@@ -141,7 +174,7 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
                     Repair Request Successfully Booked!
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-                    Your service record has been stored in our workshop system. You can track its status anytime using your phone number.
+                    Your service record has been stored in our workshop system and sent automatically to the technician desk.
                   </p>
                 </div>
               </div>
@@ -150,20 +183,28 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
               <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
-                    Your Official Service ID
+                    Official Tracking ID &amp; Service ID
                   </div>
-                  <div className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono tabular-nums">
-                    {createdOrder.serviceId}
+                  <div className="text-xl sm:text-2xl font-extrabold text-amber-500 font-mono tabular-nums flex items-center gap-2">
+                    <span>{createdOrder.id || createdOrder.serviceId}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyTrackingId(createdOrder.id || createdOrder.serviceId)}
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"
+                      title="Copy Tracking ID"
+                    >
+                      {copiedId ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    {createdOrder.brand} {createdOrder.model} · {createdOrder.serviceType}
+                    Mobile: <strong>{createdOrder.serviceId}</strong> · {createdOrder.brand} {createdOrder.model} · {createdOrder.serviceType}
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => onTrackOrderClick(createdOrder.serviceId)}
+                    onClick={() => onTrackOrderClick(createdOrder.id || createdOrder.serviceId)}
                     className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition-opacity"
                   >
                     Track Status Now
@@ -175,6 +216,8 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
                       setCustomerName('');
                       setPhone('');
                       setModel('');
+                      setCustomBrand('');
+                      setCustomService('');
                       setIssueDescription('');
                     }}
                     className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200"
@@ -292,12 +335,29 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
                 </div>
               </div>
 
+              {/* Custom Brand Field if 'Other' Selected */}
+              {brand.includes('Other') && (
+                <div className="space-y-2 animate-in fade-in">
+                  <label className="block text-xs font-semibold text-amber-500">
+                    Specify Smartphone Brand *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={customBrand}
+                    onChange={(e) => setCustomBrand(e.target.value)}
+                    placeholder="e.g. Google Pixel, Nothing, Asus, Tecno, Infinix, Honor, etc."
+                    className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-amber-500/50 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
+
               {/* Service Type */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Required Service Category *
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {CORE_SERVICES.map((s) => {
                     const isSelected = serviceType === s.name;
                     return (
@@ -316,8 +376,38 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
                       </button>
                     );
                   })}
+                  {/* Option for Other Service */}
+                  <button
+                    type="button"
+                    onClick={() => setServiceType('Other Problem / Diagnostic')}
+                    className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all ${
+                      serviceType === 'Other Problem / Diagnostic'
+                        ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-500 text-sky-800 dark:text-sky-300 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-bold truncate">Other / Diagnostics</div>
+                    <div className="text-[10px] text-slate-400 truncate">Bench Inspection</div>
+                  </button>
                 </div>
               </div>
+
+              {/* Custom Service Field if 'Other' Selected */}
+              {serviceType.includes('Other') && (
+                <div className="space-y-2 animate-in fade-in">
+                  <label className="block text-xs font-semibold text-amber-500">
+                    Specify Problem Symptoms or Service Needed *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={customService}
+                    onChange={(e) => setCustomService(e.target.value)}
+                    placeholder="e.g. Network SIM not detected, Overheating, Mic not working, etc."
+                    className="w-full h-11 px-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-amber-500/50 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              )}
 
               {/* Issue Description */}
               <div className="space-y-2">
@@ -341,7 +431,7 @@ Hello Denish Workshop, I have submitted this repair booking on your website. Ple
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#101c2c] dark:bg-[#173b59] hover:bg-[#173b59] dark:hover:bg-[#1e4a6f] text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#101c2c] dark:bg-[#173b59] hover:bg-[#173b59] dark:hover:bg-[#1e4a6f] text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Wrench className="w-4 h-4 text-amber-400" />
                   <span>{isSubmitting ? 'Registering Booking...' : 'Confirm Repair Booking'}</span>

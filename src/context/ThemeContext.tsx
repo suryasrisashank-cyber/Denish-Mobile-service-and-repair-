@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ThemeMode } from '../types';
 
@@ -81,10 +83,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+const defaultThemeContext: ThemeContextType = {
+  theme: 'light',
+  effectiveTheme: 'light',
+  setTheme: () => {},
+};
+
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return ctx;
+  return ctx || defaultThemeContext;
 }

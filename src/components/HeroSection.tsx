@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { 
   Wrench, 
@@ -72,10 +74,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onBookClick, onEstimat
               <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 backdrop-blur-sm shadow-xs">
                 <div className="text-emerald-600 dark:text-emerald-400 text-sm font-bold flex items-center gap-1.5 mb-1">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>6M Warranty</span>
+                  <span>Tested Parts</span>
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">
-                  On Repaired Spares
+                  ESD-Safe Bench
                 </div>
               </div>
             </div>
@@ -97,11 +99,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onBookClick, onEstimat
                 onClick={onEstimatorClick}
                 className="px-5 py-3.5 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-sm shadow-xs transition-all flex items-center gap-2 active:scale-95"
               >
-                <span>Calculate Cost</span>
+                <span>Service Enquiry</span>
               </button>
 
               <a
-                href={`https://wa.me/${BUSINESS_INFO.whatsappNumber}?text=Hello%20Denish%20Mobile%20Repairing%2C%20I%20need%20quick%20quote%20for%20my%20phone`}
+                href={`https://wa.me/${BUSINESS_INFO.whatsappNumber}?text=Hello%20Denish%20Mobile%20Repairing%2C%20I%20have%20a%20repair%20enquiry%20for%20my%20phone`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-5 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all flex items-center gap-2 active:scale-95"
@@ -130,7 +132,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onBookClick, onEstimat
                 </div>
               </a>
               <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
-                Open 7 Days (10 AM – 9 PM)
+                Shop Timings: 9:00 AM – 9:00 PM
               </span>
             </div>
           </div>

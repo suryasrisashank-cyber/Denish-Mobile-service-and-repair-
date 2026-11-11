@@ -1,26 +1,18 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { 
   Lock, 
-  Unlock, 
   Search, 
-  Filter, 
   Trash2, 
   Edit3, 
-  MessageSquare, 
   PlusCircle, 
-  CheckCircle2, 
-  Clock, 
-  Wrench, 
-  XCircle, 
   RotateCcw,
-  Smartphone,
-  Calendar,
   X,
-  Send,
   AlertTriangle
 } from 'lucide-react';
 import { RepairOrder, RepairStatus } from '../types';
-import { CORE_SERVICES, DEVICE_BRANDS, BUSINESS_INFO } from '../data/constants';
+import { CORE_SERVICES, DEVICE_BRANDS } from '../data/constants';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -55,7 +47,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose }) => 
   const [newModel, setNewModel] = useState('');
   const [newService, setNewService] = useState(CORE_SERVICES[0].name);
   const [newIssue, setNewIssue] = useState('');
-  const [newStatus, setNewStatus] = useState<RepairStatus>('In Progress');
+  const [newStatus] = useState<RepairStatus>('In Progress');
 
   // Load orders after authentication
   const loadOrders = async () => {
@@ -102,7 +94,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose }) => 
       } else {
         setLoginError(data.error || 'Incorrect Workshop PIN');
       }
-    } catch (err) {
+    } catch {
       setLoginError('Server error while authenticating');
     }
   };
@@ -145,8 +137,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose }) => 
         prev.map((o) => (o.id === editingOrder.id ? data.order : o))
       );
       setEditingOrder(null);
-    } catch (err: any) {
-      setUpdateError(err.message || 'Error updating order');
+    } catch (err: unknown) {
+      setUpdateError((err as Error).message || 'Error updating order');
     } finally {
       setIsUpdating(false);
     }
@@ -464,7 +456,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ isOpen, onClose }) => 
                           <td className="py-3.5 px-4 max-w-xs">
                             {order.adminMessage ? (
                               <div className="text-slate-700 dark:text-slate-300 line-clamp-2">
-                                "{order.adminMessage}"
+                                &quot;{order.adminMessage}&quot;
                               </div>
                             ) : (
                               <span className="text-slate-400 italic">No custom message</span>

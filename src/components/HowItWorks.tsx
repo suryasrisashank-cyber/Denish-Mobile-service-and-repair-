@@ -1,7 +1,10 @@
+"use client";
+
 import React from 'react';
 import { ClipboardList, Microscope, ShieldCheck, ArrowRight } from 'lucide-react';
 
-export const HowItWorks: React.FC<{ onBookClick: () => void }> = ({ onBookClick }) => {
+export const HowItWorks: React.FC<{ onBookClick?: () => void }> = ({ onBookClick }) => {
+  void onBookClick;
   const steps = [
     {
       num: '01',
@@ -19,15 +22,15 @@ export const HowItWorks: React.FC<{ onBookClick: () => void }> = ({ onBookClick 
     },
     {
       num: '03',
-      title: 'Quality Handover & Warranty',
-      description: 'Inspect your fully revived mobile device in person, verify all features including cameras, touch sampling, and biometrics, and receive an authentic 6-month spares warranty.',
-      badge: '6-Month Spares Guarantee',
+      title: 'Quality Testing & Device Handover',
+      description: 'Inspect your fully revived mobile device in person, verify all features including cameras, touch sampling, and biometrics before final delivery.',
+      badge: '100% Quality Verified',
       icon: <ShieldCheck className="w-6 h-6 text-emerald-500" />
     }
   ];
 
   return (
-    <section className="py-20 relative">
+    <section id="how-it-works" className="py-20 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-14 space-y-2">
           <div className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">

@@ -43,3 +43,10 @@ export interface BrandPriceMap {
 export interface PriceMatrix {
   [issueKey: string]: BrandPriceMap;
 }
+
+export interface DeviceBrand {
+  id: string;
+  label: string;
+  badge: string;
+}
+

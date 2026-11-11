@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { 
   Smartphone, 
@@ -57,7 +59,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onSelectServic
               Specialized Smartphone Repair Solutions
             </h2>
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300">
-              From delicate curved OLED glass laminations to deep motherboard short-circuit micro-soldering, our workbench handles all flagship brands with guaranteed OEM standards.
+              From delicate curved OLED glass laminations to deep motherboard short-circuit micro-soldering, our workbench handles all flagship brands with verified OEM standards.
             </p>
           </div>
 
@@ -71,7 +73,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onSelectServic
         </div>
 
         {/* 8 Services Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {CORE_SERVICES.map((service, index) => {
             const num = (index + 1).toString().padStart(2, '0');
             return (

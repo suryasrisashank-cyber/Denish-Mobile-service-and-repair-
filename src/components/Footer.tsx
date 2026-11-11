@@ -1,13 +1,18 @@
+"use client";
+
 import React from 'react';
-import { Phone, MessageCircle, Clock, ShieldCheck, Heart } from 'lucide-react';
+import { MessageCircle, ShieldCheck } from 'lucide-react';
 import { BUSINESS_INFO } from '../data/constants';
 
 interface FooterProps {
-  onNavClick: (tab: string) => void;
-  onOpenAdmin: () => void;
+  onNavClick?: (tab: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavClick }) => {
+  const handleNav = (tab: string) => {
+    if (typeof onNavClick === "function") onNavClick(tab);
+    else if (typeof window !== "undefined") window.location.href = "/#" + tab;
+  };
   return (
     <footer className="w-full bg-slate-100/90 dark:bg-[#0c131a] border-t border-slate-200/90 dark:border-slate-800/80 pt-16 pb-28 md:pb-16 text-slate-600 dark:text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,7 +22,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
           <div className="space-y-4 md:col-span-2">
             <div className="flex items-center gap-3">
               <img
-                src="/assets/aistudio/1794372520460_a1d82598.png"
+                src="/assets/denish-logo-icon.png"
                 alt="DENISH Logo"
                 className="w-10 h-10 object-contain"
               />
@@ -36,7 +41,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
             <div className="flex items-center gap-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>{BUSINESS_INFO.warranty}</span>
+                <span>Tested Genuine Spares</span>
               </span>
               <span>·</span>
               <span className="text-amber-600 dark:text-amber-400">
@@ -53,7 +58,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
             <ul className="space-y-2 text-xs">
               <li>
                 <button
-                  onClick={() => onNavClick('home')}
+                  onClick={() => handleNav('home')}
                   className="hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   Home Showcase
@@ -61,7 +66,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavClick('services')}
+                  onClick={() => handleNav('services')}
                   className="hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   8 Core Repair Services
@@ -69,15 +74,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavClick('estimator')}
+                  onClick={() => handleNav('estimator')}
                   className="hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
-                  Interactive Price Estimator
+                  Repair Service Enquiry
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavClick('book')}
+                  onClick={() => handleNav('book')}
                   className="hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   Book a Repair
@@ -85,18 +90,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onNavClick('track')}
+                  onClick={() => handleNav('track')}
                   className="hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   Track Order by Mobile
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={onOpenAdmin}
-                  className="text-amber-600 dark:text-amber-400 hover:underline font-semibold"
-                >
-                  Workshop Admin Portal
                 </button>
               </li>
             </ul>
@@ -120,9 +117,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
               <div>
                 <span className="text-slate-400">Working Hours:</span>
                 <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
-                  10:00 AM – 9:00 PM
+                  Shop Timings: 9:00 AM – 9:00 PM
                 </div>
-                <div className="text-[11px] text-slate-400">Monday to Sunday (Open 7 Days)</div>
+                <div className="text-[11px] text-slate-400">Monday to Saturday (6 Days Working)</div>
               </div>
               <div className="pt-1">
                 <a
@@ -155,3 +152,5 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onOpenAdmin }) => {
     </footer>
   );
 };
+
+export default Footer;

@@ -1,10 +1,12 @@
+"use client";
+
 import React from 'react';
-import { Microscope, Flame, Zap, Shield, Sparkles, MessageCircle } from 'lucide-react';
+import { Microscope, Flame, Zap, MessageCircle } from 'lucide-react';
 import { BUSINESS_INFO } from '../data/constants';
 
 export const LabShowcase: React.FC = () => {
   return (
-    <section className="py-20 relative">
+    <section id="showcase" className="py-20 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
@@ -13,7 +15,7 @@ export const LabShowcase: React.FC = () => {
             <div className="w-full h-80 sm:h-96 rounded-3xl overflow-hidden shadow-lg border border-slate-200/90 dark:border-slate-800 bg-slate-900">
               <img
                 src="/assets/aistudio/IMG_20261109_185606_267_4219b34c.jpg"
-                alt="Denish Lab High Precision Micro-Soldering Workstation"
+                alt="Display & Screen Replacement"
                 className="w-full h-full object-cover object-bottom"
               />
             </div>

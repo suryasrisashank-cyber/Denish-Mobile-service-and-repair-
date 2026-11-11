@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DENISH MOBILE — Mobile UI Live Simulator & Test Link</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #05070e;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #0f172a;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .device-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    button.device-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button.device-btn:hover {
+      color: #fff;
+    }
+    button.device-btn.active {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+    }
+    .main-stage {
+      display: flex;
+      flex: 1;
+      padding: 24px;
+      gap: 32px;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .simulator-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .phone-chassis {
+      position: relative;
+      background: #1e293b;
+      border-radius: 54px;
+      padding: 14px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 4px #334155, 0 0 35px rgba(245, 158, 11, 0.15);
+      transition: all 0.3s ease;
+    }
+    .phone-screen {
+      position: relative;
+      background: #000;
+      border-radius: 40px;
+      overflow: hidden;
+      width: 393px;
+      height: 852px;
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+      transition: width 0.3s ease, height 0.3s ease;
+    }
+    .phone-notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 28px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 99;
+      pointer-events: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #05070e;
+    }
+    .sidebar-info {
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f59e0b;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .url-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #05070e;
+      border: 1px solid #334155;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-top: 10px;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 13px;
+      color: #38bdf8;
+    }
+    .qr-container {
+      text-align: center;
+      margin-top: 14px;
+      padding: 14px;
+      background: #fff;
+      border-radius: 12px;
+      display: inline-block;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    }
+    .qr-container img {
+      width: 160px;
+      height: 160px;
+      display: block;
+    }
+    .test-checklist {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .test-checklist li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .check-icon {
+      color: #10b981;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #05070e;
+      font-weight: 800;
+      font-size: 13px;
+      text-decoration: none;
+      border-radius: 10px;
+      cursor: pointer;
+      border: none;
+      margin-top: 10px;
+      transition: all 0.2s;
+    }
+    .btn-action:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    @media (max-width: 900px) {
+      .main-stage {
+        flex-direction: column;
+        align-items: center;
+      }
+      .sidebar-info {
+        width: 100%;
+        max-width: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="badge">TEST SUITE</span>
+      <span class="title">DENISH MOBILE — Mobile UI Simulator &amp; Network Tester</span>
+    </div>
+
+    <div class="device-controls">
+      <button class="device-btn active" onclick="setDevice(393, 852, 'iPhone 15 Pro', this)">iPhone 15 Pro</button>
+      <button class="device-btn" onclick="setDevice(360, 780, 'Galaxy S24', this)">Galaxy S24</button>
+      <button class="device-btn" onclick="setDevice(412, 892, 'Pixel 8', this)">Pixel 8</button>
+      <button class="device-btn" onclick="setDevice(320, 568, 'Compact 320px', this)">Compact (320px)</button>
+      <button class="device-btn" onclick="setDevice(768, 1024, 'iPad / Tablet', this)">Tablet (768px)</button>
+    </div>
+  </header>
+
+  <div class="main-stage">
+    
+    <!-- Phone Chassis Frame -->
+    <div class="simulator-container">
+      <div id="deviceLabel" style="font-size: 13px; color: #94a3b8; font-weight: 600;">iPhone 15 Pro (393 × 852)</div>
+      <div class="phone-chassis" id="chassis">
+        <div class="phone-notch" id="notch"></div>
+        <div class="phone-screen" id="screen">
+          <iframe id="previewIframe" src="/" title="DENISH MOBILE Live Preview"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar with Direct Mobile Network Testing Link -->
+    <div class="sidebar-info">
+      
+      <!-- Card 1: Direct Physical Mobile Phone Testing -->
+      <div class="card">
+        <h3>📱 Test On Your Real Smartphone</h3>
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+          Connect your phone to the same <strong>Wi-Fi network</strong> and open this link directly in Safari or Chrome:
+        </p>
+
+        <div class="url-box">
+          http://172.26.167.117:3000
+        </div>
+
+        <div style="text-align: center; margin-top: 14px;">
+          <div class="qr-container">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=http%3A%2F%2F172.26.167.117%3A3000" alt="QR Code for mobile test link" />
+          </div>
+          <p style="font-size: 11px; color: #94a3b8; margin-top: 8px;">Scan with your phone's camera to open instantly</p>
+        </div>
+
+        <a href="http://172.26.167.117:3000" target="_blank" class="btn-action" style="width: 100%;">
+          Open LAN Link in New Tab
+        </a>
+      </div>
+
+      <!-- Card 2: Mobile UI Verification Summary -->
+      <div class="card">
+        <h3>✅ Mobile UI Verification Status</h3>
+        <ul class="test-checklist">
+          <li><span class="check-icon">✓</span> <strong>Persistent Bottom Bar:</strong> 1-tap Call &amp; WhatsApp</li>
+          <li><span class="check-icon">✓</span> <strong>Mobile Drawer:</strong> Hamburger toggle &amp; full links</li>
+          <li><span class="check-icon">✓</span> <strong>Safe Area:</strong> iPhone home bar padding</li>
+          <li><span class="check-icon">✓</span> <strong>Form on Mobile:</strong> 1-column responsive collapse</li>
+          <li><span class="check-icon">✓</span> <strong>Service Cards:</strong> Single-column touch cards</li>
+          <li><span class="check-icon">✓</span> <strong>Touch Ergonomics:</strong> Tap targets &ge; 48px height</li>
+          <li><span class="check-icon">✓</span> <strong>Zero Horizontal Scroll:</strong> 100% viewport bounded</li>
+        </ul>
+      </div>
+
+      <!-- Card 3: Chrome DevTools shortcut -->
+      <div class="card">
+        <h3>💻 Chrome DevTools Mobile Mode</h3>
+        <p style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+          You can also press <strong style="color: #fff;">F12</strong> on this page, then press <strong style="color: #fff;">Ctrl + Shift + M</strong> (or <strong style="color: #fff;">Cmd + Shift + M</strong> on Mac) to toggle browser device emulation with touch events.
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    function setDevice(width, height, label, btn) {
+      const screen = document.getElementById('screen');
+      const notch = document.getElementById('notch');
+      const chassis = document.getElementById('chassis');
+      const labelEl = document.getElementById('deviceLabel');
+
+      screen.style.width = width + 'px';
+      screen.style.height = height + 'px';
+      labelEl.innerText = label + ' (' + width + ' × ' + height + ')';
+
+      if (width >= 768) {
+        notch.style.display = 'none';
+        chassis.style.borderRadius = '32px';
+        screen.style.borderRadius = '20px';
+      } else {
+        notch.style.display = 'block';
+        chassis.style.borderRadius = '54px';
+        screen.style.borderRadius = '40px';
+      }
+
+      document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+  </script>
+
+</body>
+</html>

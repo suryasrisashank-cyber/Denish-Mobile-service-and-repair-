@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
@@ -47,8 +49,8 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
       }
 
       setOrders(data.orders || []);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Unable to connect to order server.');
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Unable to connect to order server.');
       setOrders([]);
     } finally {
       setIsSearching(false);
@@ -272,7 +274,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
                               )}
                             </div>
                             <p className="text-xs text-amber-950 dark:text-amber-200 font-medium">
-                              "{order.adminMessage}"
+                              &quot;{order.adminMessage}&quot;
                             </p>
                           </div>
                         )}
