@@ -11,7 +11,6 @@
     "test:all": "node scripts/production-readiness-audit.js && node scripts/qa-deep-test.js"
   },
   "dependencies": {
-    "@next/swc-win32-x64-msvc": "^14.2.15",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^9.6.0",
     "bcryptjs": "^3.0.3",

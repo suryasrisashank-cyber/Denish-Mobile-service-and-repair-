@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Ensure native addons like better-sqlite3 are externalized from webpack bundling
+  experimental: {
+    serverComponentsExternalPackages: ["better-sqlite3"],
+  },
+
   // Strip X-Powered-By header to prevent server fingerprinting
   poweredByHeader: false,
 
