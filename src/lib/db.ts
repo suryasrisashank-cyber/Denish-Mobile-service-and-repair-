@@ -13,16 +13,50 @@ export function getDatabase(): Database.Database {
     return dbInstance;
   }
 
-  const dbDir = path.join(process.cwd(), "data");
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  const isServerless = Boolean(
+    process.env.NETLIFY ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.VERCEL ||
+    process.env.LAMBDA_TASK_ROOT
+  );
+
+  let dbPath = process.env.DATABASE_PATH;
+  if (!dbPath) {
+    if (isServerless) {
+      // In serverless environments (Netlify, AWS Lambda, Vercel),
+      // /var/task is read-only. Only /tmp is writable.
+      const tmpDb = path.join("/tmp", "denish.sqlite");
+      const repoDb = path.join(process.cwd(), "data", "denish.sqlite");
+      if (fs.existsSync(repoDb) && !fs.existsSync(tmpDb)) {
+        try {
+          fs.copyFileSync(repoDb, tmpDb);
+        } catch {
+          // ignore copy error
+        }
+      }
+      dbPath = tmpDb;
+    } else {
+      let dbDir = path.join(process.cwd(), "data");
+      try {
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true });
+        }
+      } catch (err) {
+        console.warn("[DATABASE] process.cwd() not writable, using /tmp fallback:", err);
+        dbDir = "/tmp";
+      }
+      dbPath = path.join(dbDir, "denish.sqlite");
+    }
   }
 
-  const dbPath = process.env.DATABASE_PATH || path.join(dbDir, "denish.sqlite");
   dbInstance = new Database(dbPath);
 
   // Performance & Integrity Pragmas
-  dbInstance.pragma("journal_mode = WAL");
+  try {
+    dbInstance.pragma("journal_mode = WAL");
+  } catch {
+    dbInstance.pragma("journal_mode = DELETE");
+  }
   dbInstance.pragma("foreign_keys = ON");
   dbInstance.pragma("synchronous = NORMAL");
 
@@ -194,23 +228,31 @@ function runSchemaMigrations(db: Database.Database) {
 }
 
 function seedInitialAdmin(db: Database.Database) {
-  const countStmt = db.prepare("SELECT COUNT(*) as count FROM admin_users");
-  const result = countStmt.get() as { count: number };
-
-  if (result.count === 0) {
-    const username = process.env.ADMIN_INITIAL_USERNAME || "denish_admin";
-    const email = process.env.ADMIN_INITIAL_EMAIL || "admin@denishmobile.com";
-    // Never commit production password; use env or secure fallback for initial local bootstrapping
+  try {
     const defaultPassword = process.env.ADMIN_INITIAL_PASSWORD || "Denish@Lab2026!";
     const passwordHash = bcrypt.hashSync(defaultPassword, 12);
 
-    const insertAdmin = db.prepare(`
-      INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, 'super_admin', 'Denish Master Admin', 1, datetime('now'), datetime('now'))
-    `);
+    // 1. Ensure denish_admin exists
+    const existingDenish = db.prepare("SELECT id FROM admin_users WHERE username = 'denish_admin'").get();
+    if (!existingDenish) {
+      db.prepare(`
+        INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
+        VALUES ('denish_admin', 'admin@denishmobile.com', ?, 'super_admin', 'Denish Master Admin', 1, datetime('now'), datetime('now'))
+      `).run(passwordHash);
+      console.log("[DATABASE] Initial super_admin seeded: denish_admin");
+    }
 
-    insertAdmin.run(username, email, passwordHash);
-    console.log(`[DATABASE] Initial super_admin seeded: ${username}`);
+    // 2. Ensure admin alias exists
+    const existingAdmin = db.prepare("SELECT id FROM admin_users WHERE username = 'admin'").get();
+    if (!existingAdmin) {
+      db.prepare(`
+        INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
+        VALUES ('admin', 'master@denishmobile.com', ?, 'super_admin', 'Administrator', 1, datetime('now'), datetime('now'))
+      `).run(passwordHash);
+      console.log("[DATABASE] Admin alias seeded: admin");
+    }
+  } catch (err) {
+    console.error("[DATABASE_SEED_ERROR]", err);
   }
 }
 
