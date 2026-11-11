@@ -36,3 +36,4 @@ if (adminUser) {
 
 console.log('Admin users in database:');
 console.table(db.prepare('SELECT id, username, email, role, is_active FROM admin_users').all());
+
