@@ -87,14 +87,14 @@ export async function GET(
   }
 
   const cleanTrackingId = rawTrackingId.trim().toUpperCase();
-  const digitsOnly = cleanTrackingId.replace(/\D/g, "");
+  const isRawPhone10 = /^[0-9]{10}$/.test(cleanTrackingId);
   const denPrefixed = cleanTrackingId.startsWith("DEN-") ? cleanTrackingId : `DEN-${cleanTrackingId}`;
 
   try {
     const db = getDatabase();
 
     // 3. Query Repair Order (Strict whitelist - NEVER select customer phone, address, internal notes or cost)
-    // Matches by exact tracking_id, DEN-prefixed tracking_id, or customer phone (10 digits)
+    // Matches exact repair reference (DMR-YYMMDD-XXXX / DEN-...) or exact 10-digit phone when phone is queried
     interface DbOrderRow {
       id: number;
       tracking_id: string;
@@ -103,6 +103,7 @@ export async function GET(
       repair_category: string;
       reported_issue: string;
       estimated_completion: string | null;
+      preferred_booking_date: string | null;
       current_status: RepairStatus;
       pickup_ready: number;
       created_at: string;
@@ -119,6 +120,7 @@ export async function GET(
         ro.repair_category,
         ro.reported_issue,
         ro.estimated_completion,
+        ro.preferred_booking_date,
         ro.current_status,
         ro.pickup_ready,
         ro.created_at,
@@ -126,18 +128,19 @@ export async function GET(
         cr.name as customer_name
       FROM repair_orders ro
       JOIN customer_records cr ON ro.customer_id = cr.id
-      WHERE (
-        ro.tracking_id = ? 
-        OR ro.tracking_id = ?
-        OR (length(?) >= 10 AND cr.phone LIKE ?)
-      )
+      WHERE ro.is_archived = 0
+        AND (
+          ro.tracking_id = ?
+          OR ro.tracking_id = ?
+          OR (? = 1 AND cr.phone = ?)
+        )
       ORDER BY ro.id DESC
       LIMIT 1
     `).get(
       cleanTrackingId,
       denPrefixed,
-      digitsOnly,
-      `%${digitsOnly.slice(-10)}%`
+      isRawPhone10 ? 1 : 0,
+      isRawPhone10 ? cleanTrackingId : ""
     ) as DbOrderRow | undefined;
 
     if (!order) {

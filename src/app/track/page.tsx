@@ -38,8 +38,9 @@ interface TrackingData {
   statusHistory: StatusHistoryItem[];
 }
 
-// 10-stage linear progression for tracking timeline
+// 9-stage linear progression for tracking timeline
 const PROGRESS_STAGES: Array<{ code: RepairStatus; label: string }> = [
+  { code: "NEW_REQUEST", label: "Booking Received" },
   { code: "RECEIVED", label: "Device Received" },
   { code: "UNDER_INSPECTION", label: "Inspection & Diagnosis" },
   { code: "WAITING_FOR_APPROVAL", label: "Customer Approval" },
@@ -202,8 +203,8 @@ export default function TrackPage() {
                     type="text"
                     value={trackingId}
                     onChange={(e) => setTrackingId(e.target.value.toUpperCase())}
-                    placeholder="e.g. DEN-7K9M2Q8X4P"
-                    maxLength={16}
+                    placeholder="e.g. DMR-261112-K9P3"
+                    maxLength={24}
                     autoComplete="off"
                     autoFocus
                     className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm font-mono uppercase tracking-widest text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"

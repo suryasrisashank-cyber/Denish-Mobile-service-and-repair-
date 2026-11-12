@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, 
   Clock, 
@@ -29,19 +29,27 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
   const [orders, setOrders] = useState<RepairOrder[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fetchOrders = async (phoneToSearch: string) => {
-    const clean = phoneToSearch.replace(/\D/g, '');
-    if (clean.length < 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile number.');
+  const fetchOrders = useCallback(async (queryInput: string) => {
+    const trimmed = queryInput.trim();
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    const isRef = /^(DMR|DEN)-[A-Z0-9-]+$/i.test(trimmed);
+    const isPhone = digitsOnly.length >= 10;
+
+    if (!isRef && !isPhone) {
+      setErrorMessage('Please enter a valid Repair Reference (e.g. DMR-261112-XXXX) or 10-digit mobile number.');
       return;
     }
+
+    const cleanQuery = isRef ? trimmed.toUpperCase() : digitsOnly.slice(-10);
 
     setIsSearching(true);
     setErrorMessage('');
     setHasSearched(true);
 
     try {
-      const res = await fetch(`/api/orders/track/${clean}`);
+      const res = await fetch(`/api/orders/track/${encodeURIComponent(cleanQuery)}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -55,14 +63,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
     } finally {
       setIsSearching(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (initialPhone && initialPhone.length >= 10) {
+    if (initialPhone && initialPhone.trim().length >= 6) {
       setPhoneNumber(initialPhone);
       fetchOrders(initialPhone);
     }
-  }, [initialPhone]);
+  }, [initialPhone, fetchOrders]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +124,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
               Track Repair Order / My Orders
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-              Enter your registered 10-digit mobile number to view live repair progress, component diagnostic stages, and custom messages from our workshop technician.
+              Enter your Repair Reference ID (e.g. DMR-261112-XXXX) or registered 10-digit mobile number to view live repair progress and updates from our workshop technician.
             </p>
           </div>
 
@@ -125,10 +133,10 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-4 top-4" />
               <input
-                type="tel"
+                type="text"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Enter 10-digit mobile number (Service ID)"
+                placeholder="Enter Repair Reference (e.g. DMR-261112-K9P3) or 10-digit mobile"
                 className="w-full h-12 pl-11 pr-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
@@ -162,7 +170,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
                       No Repair Records Found
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                      We could not find an active or completed repair order under mobile number{' '}
+                      We could not find an active repair order matching{' '}
                       <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{phoneNumber}</span>.
                     </p>
                   </div>
@@ -180,7 +188,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
               ) : (
                 <div className="space-y-4">
                   <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                    <span>Found {orders.length} repair order(s) for your mobile number</span>
+                    <span>Found {orders.length} repair order(s)</span>
                     <button
                       onClick={() => fetchOrders(phoneNumber)}
                       className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 hover:underline"
@@ -193,7 +201,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
                   {orders.map((order) => {
                     const statusConfig = getStatusColor(order.status);
                     const whatsappOrderUrl = `https://wa.me/${BUSINESS_INFO.whatsappNumber}?text=${encodeURIComponent(
-                      `Hello Denish Workshop, checking status of my repair: Order ${order.id} (Service ID: ${order.serviceId}) for ${order.brand} ${order.model}.`
+                      `Hello Denish Workshop, checking status of my repair: Reference ${order.id} for ${order.brand} ${order.model}.`
                     )}`;
 
                     return (
@@ -201,15 +209,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
                         key={order.id}
                         className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-5"
                       >
-                        {/* Header: Service ID + Status Badge */}
+                        {/* Header: Reference + Status Badge */}
                         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
                           <div>
                             <div className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
-                              Order Ticket: {order.id}
+                              Repair Reference
                             </div>
                             <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                              <span>Service ID:</span>
-                              <span className="font-mono text-sky-600 dark:text-sky-400">{order.serviceId}</span>
+                              <span className="font-mono text-sky-600 dark:text-sky-400">{order.id}</span>
                             </div>
                           </div>
 
@@ -259,13 +266,13 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialPhone = '', o
                           <span className="text-slate-600 dark:text-slate-400">{order.issueDescription}</span>
                         </div>
 
-                        {/* Special Message from Administrator (Section 11) */}
+                        {/* Customer Note from Workshop */}
                         {order.adminMessage && (
                           <div className="p-4 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 space-y-1.5">
                             <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300">
                               <div className="flex items-center gap-1.5">
                                 <MessageSquare className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                <span>Special Message from Workshop Master</span>
+                                <span>Workshop Status Update</span>
                               </div>
                               {order.adminUpdatedAt && (
                                 <span className="text-[10px] font-normal text-amber-800 dark:text-amber-400">

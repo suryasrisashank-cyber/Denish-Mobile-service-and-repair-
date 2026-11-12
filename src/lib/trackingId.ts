@@ -1,18 +1,18 @@
 // DENISH MOBILE REPAIRING AND SERVICE
 // Tracking ID Generator & Validator
-// Format: Based on customer mobile number `DEN-<10-DIGIT-PHONE>` with collision handling
-// Privacy: Public lookup NEVER reveals customer phone, address, or unmasked name.
+// Standard Format: DMR-YYMMDD-XXXX (e.g., DMR-261112-K9P3) — unpredictable & non-PII
+// Legacy Support: DEN-<token> / 10-digit mobile lookup
 
 import crypto from "crypto";
 import { getDatabase } from "./db";
 
-// Crockford Base32-inspired charset for fallback tokens
+// Crockford Base32-inspired uppercase charset (avoids ambiguous 0/O/1/I)
 const SAFE_CHARSET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 /**
- * Generates an unpredictable random token of requested length.
+ * Generates a cryptographically random alphanumeric token of requested length.
  */
-export function generateRandomToken(length = 10): string {
+export function generateRandomToken(length = 4): string {
   const bytes = crypto.randomBytes(length);
   let result = "";
   for (let i = 0; i < length; i++) {
@@ -22,68 +22,57 @@ export function generateRandomToken(length = 10): string {
   return result;
 }
 
+function formatYyMmDd(date = new Date()): string {
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}${mm}${dd}`;
+}
+
 /**
- * Generates a unique tracking ID in format `DEN-<MOBILE>` based on the customer's phone number.
- * If customer creates multiple orders, handles collision cleanly with `-2`, `-3`, etc.
- * Supports passing an active transaction database instance.
+ * Generates a unique, unpredictable repair reference in format `DMR-YYMMDD-XXXX`.
+ * Never embeds customer phone numbers or PII.
  */
 export function generateSecureTrackingId(
-  customDb?: import("better-sqlite3").Database,
-  customerPhone?: string
+  customDb?: import("better-sqlite3").Database
 ): string {
   const db = customDb || getDatabase();
   const checkStmt = db.prepare("SELECT 1 FROM repair_orders WHERE tracking_id = ?");
+  const datePart = formatYyMmDd();
 
-  if (customerPhone) {
-    const digits = customerPhone.replace(/\D/g, "");
-    if (digits.length >= 10) {
-      const phone10 = digits.slice(-10);
-      const baseCandidate = `DEN-${phone10}`;
-      if (!checkStmt.get(baseCandidate)) {
-        return baseCandidate;
-      }
-
-      // Suffix collision handling (e.g. DEN-9825012345-2)
-      for (let suffix = 2; suffix <= 99; suffix++) {
-        const candidate = `${baseCandidate}-${suffix}`;
-        if (!checkStmt.get(candidate)) {
-          return candidate;
-        }
-      }
-    }
-  }
-
-  // Fallback to secure random token if no phone was supplied or high collision
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const candidate = `DEN-${generateRandomToken(10)}`;
-    const existing = checkStmt.get(candidate);
-    if (!existing) {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const candidate = `DMR-${datePart}-${generateRandomToken(4)}`;
+    if (!checkStmt.get(candidate)) {
       return candidate;
     }
   }
 
-  return `DEN-${generateRandomToken(12)}`;
+  // Fallback with 6 random characters if 4-char space experiences unusual collision
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = `DMR-${datePart}-${generateRandomToken(6)}`;
+    if (!checkStmt.get(candidate)) {
+      return candidate;
+    }
+  }
+
+  return `DMR-${datePart}-${generateRandomToken(8)}`;
 }
 
 /**
- * Normalizes and validates tracking ID input from customer.
+ * Normalizes and validates tracking ID or mobile lookup input from customer.
  * Supports:
- * - DEN-<10-DIGIT-PHONE> (e.g., DEN-9825012345)
- * - DEN-<10-DIGIT-PHONE>-<SUFFIX> (e.g., DEN-9825012345-2)
- * - Raw 10-digit mobile number (e.g., 9825012345)
- * - Legacy alphanumeric tokens (e.g., DEN-W4CTDDQAZS, DMR-XXXXXX-XXXX)
+ * - Standard: DMR-YYMMDD-XXXX (4-8 alphanumeric suffix)
+ * - Legacy DEN- tokens and DEN-<10-digit>(-suffix)
+ * - Raw 10-digit mobile number (when used in phone-based order tracker)
  */
 export function isValidTrackingId(input: string): boolean {
   if (!input || typeof input !== "string") return false;
   const clean = input.trim().toUpperCase();
 
-  // Raw 10-digit phone
-  if (/^[0-9]{10}$/.test(clean)) return true;
-
-  // DEN- prefixed phone or alphanumeric token
+  if (/^DMR-\d{6}-[A-Z0-9]{4,8}$/i.test(clean)) return true;
   if (/^DEN-[0-9]{10}(-[0-9A-Z]+)?$/i.test(clean)) return true;
   if (/^DEN-[2-9A-HJ-NP-Z0-9]{6,16}(-[0-9A-Z]+)?$/i.test(clean)) return true;
-  if (/^DMR-\d{6}-\d{4}$/i.test(clean)) return true;
+  if (/^[0-9]{10}$/.test(clean)) return true;
 
   return false;
 }

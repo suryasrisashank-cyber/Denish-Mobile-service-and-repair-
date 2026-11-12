@@ -52,3 +52,6 @@ next-env.d.ts
 stitch_export/
 stitch-export-2/
 *.log
+
+# private keys
+*.key

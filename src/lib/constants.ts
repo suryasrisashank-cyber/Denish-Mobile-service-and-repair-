@@ -153,6 +153,6 @@ export const SYSTEM_CONFIG = {
   phoneDisplay: "+91 85116 •••••",
   phoneFull: "+918511668848",
   whatsappNumber: "918511668848",
-  trackingPrefix: "DEN-",
-  trackingRegex: /^DEN-[2-9A-HJ-NP-Z]{10}$/i,
+  trackingPrefix: "DMR-",
+  trackingRegex: /^(DMR-\d{6}-[A-Z0-9]{4,8}|DEN-[2-9A-HJ-NP-Z0-9]{6,16}(-[0-9A-Z]+)?)$/i,
 };

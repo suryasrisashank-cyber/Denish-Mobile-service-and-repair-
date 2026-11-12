@@ -94,8 +94,13 @@ export default function AdminLayout({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // Theme state
+  // Theme & client search state (hydrated safely after mount)
   const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">("light");
+  const [clientSearch, setClientSearch] = useState("");
+
+  useEffect(() => {
+    setClientSearch(typeof window !== "undefined" ? window.location.search : "");
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -156,19 +161,18 @@ export default function AdminLayout({
       .then((data) => {
         if (data.success && data.data) {
           setAdmin(data.data);
+          fetchNotifications();
         } else {
           try {
             localStorage.removeItem("denish_admin_token");
           } catch {}
-          router.push("/admin/login");
+          router.replace("/admin/login");
         }
       })
       .catch(() => {
-        router.push("/admin/login");
+        router.replace("/admin/login");
       })
       .finally(() => setLoading(false));
-
-    fetchNotifications();
   }, [isLoginPage, router, fetchNotifications]);
 
   const handleMarkAllRead = async () => {
@@ -262,6 +266,17 @@ export default function AdminLayout({
     return <>{children}</>;
   }
 
+  if (loading || !admin) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3 text-slate-600 dark:text-slate-300">
+          <div className="w-8 h-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+          <span className="text-xs font-bold uppercase tracking-wider">Verifying Admin Session...</span>
+        </div>
+      </div>
+    );
+  }
+
   // 14 Desktop Sidebar Navigation Items strictly matching Phase 3 specification
   const desktopSidebarItems = [
     { id: "dashboard", href: "/admin", label: "Dashboard", number: "1", icon: LayoutDashboard },
@@ -286,15 +301,12 @@ export default function AdminLayout({
   ];
 
   const isItemActive = (item: { id: string; href: string }) => {
-    if (typeof window !== "undefined") {
-      const search = window.location.search;
-      if (item.id === "dashboard") {
-        return pathname === "/admin" && !search;
-      }
-      if (item.href.includes("?")) {
-        const queryPart = item.href.split("?")[1];
-        return pathname === "/admin" && search.includes(queryPart);
-      }
+    if (item.id === "dashboard") {
+      return pathname === "/admin" && !clientSearch;
+    }
+    if (item.href.includes("?")) {
+      const queryPart = item.href.split("?")[1];
+      return pathname === "/admin" && clientSearch.includes(queryPart);
     }
     return pathname === item.href;
   };

@@ -126,7 +126,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
   const getWhatsAppMessageUrl = (order: RepairOrder) => {
     const trackingId = order.id || order.serviceId;
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://denish-mobile-repair.vercel.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || 'https://denish-mobile-repair.netlify.app');
     const text = 
 `*NEW REPAIR BOOKING — DENISH MOBILE*
 Tracking ID: *${trackingId}*
@@ -138,7 +138,7 @@ Issue Symptoms: ${order.issueDescription}
 Booking Date: ${new Date(order.createdAt).toLocaleDateString('en-IN')}
 
 Track status online:
-${origin}/track?id=${trackingId}
+${origin}/track-repair?id=${encodeURIComponent(trackingId)}
 
 Hello Denish Workshop, I have submitted this repair booking on your website. Please inspect and confirm technician availability.`;
     return `https://wa.me/${BUSINESS_INFO.whatsappNumber}?text=${encodeURIComponent(text)}`;

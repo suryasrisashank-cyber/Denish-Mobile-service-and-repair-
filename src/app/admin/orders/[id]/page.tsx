@@ -83,7 +83,7 @@ export default function OrderDetailPage() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch(`/api/admin/orders/${orderId}`, { headers });
+      const res = await fetch(`/api/admin/orders/${orderId}`, { headers, cache: "no-store" });
       const data = await res.json();
       if (res.ok && data.success) {
         setOrder(data.data);
@@ -159,7 +159,8 @@ export default function OrderDetailPage() {
         headers,
         body: JSON.stringify({
           orderId: order.id,
-          notificationType: selectedStatus,
+          mode: "cloud_api",
+          type: selectedStatus === "COMPLETED" ? "COMPLETED" : selectedStatus === "READY_FOR_PICKUP" ? "READY_FOR_PICKUP" : "STATUS_UPDATE",
         }),
       });
 
@@ -200,11 +201,13 @@ export default function OrderDetailPage() {
   }
 
   const trackingUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/track?id=${encodeURIComponent(order.trackingId)}`
-    : `/track?id=${order.trackingId}`;
+    ? `${window.location.origin}/track-repair?id=${encodeURIComponent(order.trackingId)}`
+    : `/track-repair?id=${order.trackingId}`;
 
-  const manualWhatsAppMessage = `Hello ${order.customer.name}, update regarding your ${order.deviceBrand} ${order.deviceModel} (Tracking ID: ${order.trackingId}) at ${SYSTEM_CONFIG.storeName}: Current status is ${order.statusLabel}. Track live: ${trackingUrl}`;
-  const manualWhatsAppUrl = `https://wa.me/${order.customer.phone.replace(/\D/g, "")}?text=${encodeURIComponent(manualWhatsAppMessage)}`;
+  const cleanWaDigits = order.customer.phone.replace(/\D/g, "");
+  const waIntlPhone = cleanWaDigits.length === 10 ? `91${cleanWaDigits}` : cleanWaDigits;
+  const manualWhatsAppMessage = `Hello ${order.customer.name}, update regarding your ${order.deviceBrand} ${order.deviceModel} (Reference: ${order.trackingId}) at ${SYSTEM_CONFIG.storeName}: Current status is ${order.statusLabel}. Track live: ${trackingUrl}`;
+  const manualWhatsAppUrl = `https://wa.me/${waIntlPhone}?text=${encodeURIComponent(manualWhatsAppMessage)}`;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

@@ -353,7 +353,7 @@ function AdminDashboardContent() {
       if (dateRange && dateRange !== "all") params.set("dateRange", dateRange);
       if (debouncedSearch) params.set("q", debouncedSearch);
 
-      const res = await fetch(`/api/admin/orders?${params.toString()}`, { headers });
+      const res = await fetch(`/api/admin/orders?${params.toString()}`, { headers, cache: "no-store" });
       if (!res.ok) {
         if (res.status === 401) {
           router.push("/admin/login");

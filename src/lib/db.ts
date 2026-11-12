@@ -162,6 +162,14 @@ function runSchemaMigrations(db: Database.Database) {
       db.prepare("ALTER TABLE repair_orders ADD COLUMN archive_reason TEXT").run();
       console.log("[MIGRATION] Added archive_reason column to repair_orders table.");
     }
+    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "preferred_booking_date")) {
+      db.prepare("ALTER TABLE repair_orders ADD COLUMN preferred_booking_date TEXT").run();
+      console.log("[MIGRATION] Added preferred_booking_date column to repair_orders table.");
+    }
+    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "preferred_contact_method")) {
+      db.prepare("ALTER TABLE repair_orders ADD COLUMN preferred_contact_method TEXT NOT NULL DEFAULT 'whatsapp'").run();
+      console.log("[MIGRATION] Added preferred_contact_method column to repair_orders table.");
+    }
 
     // 5. Normalize legacy 'CUSTOMER_REQUEST' source values to 'CUSTOMER_WEBSITE'
     db.prepare("UPDATE repair_orders SET source = 'CUSTOMER_WEBSITE' WHERE source = 'CUSTOMER_REQUEST'").run();
@@ -229,28 +237,28 @@ function runSchemaMigrations(db: Database.Database) {
 
 function seedInitialAdmin(db: Database.Database) {
   try {
-    const defaultPassword = process.env.ADMIN_INITIAL_PASSWORD || "Denish@Lab2026!";
-    const passwordHash = bcrypt.hashSync(defaultPassword, 12);
-
-    // 1. Ensure denish_admin exists
-    const existingDenish = db.prepare("SELECT id FROM admin_users WHERE username = 'denish_admin'").get();
-    if (!existingDenish) {
-      db.prepare(`
-        INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
-        VALUES ('denish_admin', 'admin@denishmobile.com', ?, 'super_admin', 'Denish Master Admin', 1, datetime('now'), datetime('now'))
-      `).run(passwordHash);
-      console.log("[DATABASE] Initial super_admin seeded: denish_admin");
+    const countRow = db.prepare("SELECT COUNT(*) as c FROM admin_users").get() as { c: number } | undefined;
+    if (countRow && countRow.c > 0) {
+      return;
     }
 
-    // 2. Ensure admin alias exists
-    const existingAdmin = db.prepare("SELECT id FROM admin_users WHERE username = 'admin'").get();
-    if (!existingAdmin) {
-      db.prepare(`
-        INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
-        VALUES ('admin', 'master@denishmobile.com', ?, 'super_admin', 'Administrator', 1, datetime('now'), datetime('now'))
-      `).run(passwordHash);
-      console.log("[DATABASE] Admin alias seeded: admin");
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim();
+    const initialUsername = (process.env.ADMIN_INITIAL_USERNAME || "denish_admin").trim().toLowerCase();
+    const initialEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@denishmobile.com").trim().toLowerCase();
+
+    if (!initialPassword || initialPassword.length < 10) {
+      console.warn(
+        "[AUTH_SETUP_REQUIRED] No admin_users found. Set ADMIN_INITIAL_PASSWORD (>= 10 chars) or run `node scripts/create-admin.js <username> <email> <password> super_admin` to provision the owner account."
+      );
+      return;
     }
+
+    const passwordHash = bcrypt.hashSync(initialPassword, 12);
+    db.prepare(`
+      INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, 'super_admin', 'Denish Workshop Admin', 1, datetime('now'), datetime('now'))
+    `).run(initialUsername, initialEmail, passwordHash);
+    console.log(`[DATABASE] Initial super_admin provisioned: ${initialUsername}`);
   } catch (err) {
     console.error("[DATABASE_SEED_ERROR]", err);
   }

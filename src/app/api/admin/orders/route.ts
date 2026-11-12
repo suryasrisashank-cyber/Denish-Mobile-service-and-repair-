@@ -151,6 +151,8 @@ export async function GET(request: NextRequest) {
         ro.is_archived,
         ro.archived_at,
         ro.archive_reason,
+        ro.preferred_booking_date,
+        ro.preferred_contact_method,
         ro.created_at,
         ro.updated_at,
         cr.id as customer_id,
@@ -181,6 +183,8 @@ export async function GET(request: NextRequest) {
       is_archived?: number;
       archived_at?: string | null;
       archive_reason?: string | null;
+      preferred_booking_date?: string | null;
+      preferred_contact_method?: string | null;
       created_at: string;
       updated_at: string;
       customer_id: number;
@@ -278,6 +282,8 @@ export async function GET(request: NextRequest) {
             isArchived: o.is_archived === 1,
             archivedAt: o.archived_at || null,
             archiveReason: o.archive_reason || null,
+            preferredBookingDate: o.preferred_booking_date || null,
+            preferredContactMethod: o.preferred_contact_method || "whatsapp",
             type: o.customer_type || (o.source === "ADMIN_CREATED" ? "Dealer" : "Customer"),
             due: o.estimated_completion || "Today",
             estimatedCompletion: o.estimated_completion,
@@ -375,8 +381,8 @@ export async function POST(request: NextRequest) {
 
     // Atomic Transaction: Customer -> Order -> Status History -> Audit Log
     const result = runInTransaction((db) => {
-      // 1. Generate Secure Tracking ID based on customer mobile
-      const trackingId = generateSecureTrackingId(db, cleanPhone);
+      // 1. Generate Secure Tracking ID (DMR-YYMMDD-XXXX)
+      const trackingId = generateSecureTrackingId(db);
 
       // Find or create customer
       let customerId: number;

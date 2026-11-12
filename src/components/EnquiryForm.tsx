@@ -28,14 +28,27 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
     phone: "",
     location: "Gandhinagar",
     deviceBrand: "",
+    customBrand: "",
     deviceModel: "",
     issue: initialIssue,
+    customIssue: "",
     description: "",
     appointmentDate: "",
     appointmentTime: "",
-    preferredContact: "whatsapp",
+    preferredContact: "whatsapp" as "whatsapp" | "phone",
+    website: "", // anti-spam honeypot
     consent: true,
   });
+
+  const [minDateStr, setMinDateStr] = useState("");
+  useEffect(() => {
+    const now = new Date();
+    setMinDateStr(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+        now.getDate()
+      ).padStart(2, "0")}`
+    );
+  }, []);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,14 +93,29 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
 
     if (!formData.deviceBrand) {
       errs.deviceBrand = "Please select your smartphone brand.";
+    } else if (formData.deviceBrand === "Other" && !formData.customBrand.trim()) {
+      errs.customBrand = "Please specify your smartphone brand.";
     }
 
-    if (!formData.deviceModel.trim()) {
+    if (!formData.deviceModel.trim() || formData.deviceModel.trim().length < 2) {
       errs.deviceModel = "Please enter your device model (e.g. iPhone 13, Galaxy S22).";
     }
 
     if (!formData.issue) {
-      errs.issue = "Please select the primary issue.";
+      errs.issue = "Please select the primary repair service needed.";
+    } else if (formData.issue === "Other Hardware/Software Fault" && !formData.customIssue.trim()) {
+      errs.customIssue = "Please describe the service or issue needed.";
+    }
+
+    if (formData.appointmentDate) {
+      if (minDateStr && formData.appointmentDate < minDateStr) {
+        errs.appointmentDate = "Preferred booking date cannot be in the past.";
+      } else {
+        const parsed = new Date(`${formData.appointmentDate}T00:00:00Z`);
+        if (!Number.isNaN(parsed.getTime()) && parsed.getUTCDay() === 0) {
+          errs.appointmentDate = "Workshop operates Monday to Saturday (9:00 AM – 9:00 PM). Please pick Mon–Sat.";
+        }
+      }
     }
 
     return errs;
@@ -106,7 +134,7 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
     setSubmissionResult(null);
 
     try {
-      const response = await fetch("/api/requests", {
+      const response = await fetch("/api/enquire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -125,7 +153,7 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
           success: true,
           trackingId: id,
           referenceId: id,
-          trackingUrl: data.trackingUrl || `/track?id=${id}`,
+          trackingUrl: data.trackingUrl || `/track-repair?id=${encodeURIComponent(id)}`,
           directWhatsAppUrl: data.whatsAppUrl || data.directWhatsAppUrl,
           message: data.message,
         });
@@ -146,12 +174,15 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
       phone: "",
       location: "Gandhinagar",
       deviceBrand: "",
+      customBrand: "",
       deviceModel: "",
       issue: "",
+      customIssue: "",
       description: "",
       appointmentDate: "",
       appointmentTime: "",
       preferredContact: "whatsapp",
+      website: "",
       consent: true,
     });
     setErrors({});
@@ -331,7 +362,7 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
                     )}
 
                     <a
-                      href={`/track?id=${encodeURIComponent(submissionResult.trackingId || submissionResult.referenceId || "")}`}
+                      href={`/track-repair?id=${encodeURIComponent(submissionResult.trackingId || submissionResult.referenceId || "")}`}
                       className="btn-gold w-full sm:w-auto px-5 py-3 text-xs sm:text-sm font-bold shadow-md flex items-center justify-center"
                     >
                       <Wrench className="w-4 h-4 mr-1.5" />
@@ -467,6 +498,28 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
                     </div>
                   </div>
 
+                  {formData.deviceBrand === "Other" && (
+                    <div className="space-y-1">
+                      <label htmlFor="customBrand" className="font-label-badge text-[10px] text-amber-400 uppercase font-semibold">
+                        Specify Device Brand <span className="text-primary">*</span>
+                      </label>
+                      <input
+                        id="customBrand"
+                        type="text"
+                        value={formData.customBrand}
+                        onChange={(e) => {
+                          setFormData({ ...formData, customBrand: e.target.value });
+                          if (errors.customBrand) setErrors({ ...errors, customBrand: "" });
+                        }}
+                        placeholder="e.g. Nothing, Motorola, Asus, iQOO..."
+                        className={`w-full h-11 px-3.5 rounded-lg bg-surface-container-lowest border text-on-surface placeholder:text-outline text-xs sm:text-sm focus:outline-none transition-colors ${
+                          errors.customBrand ? "border-red-500 ring-1 ring-red-500" : "border-white/10 focus:border-primary"
+                        }`}
+                      />
+                      {errors.customBrand && <p className="text-[10px] text-red-400">{errors.customBrand}</p>}
+                    </div>
+                  )}
+
                   {/* Primary Issue */}
                   <div className="space-y-1">
                     <label htmlFor="repairIssue" className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
@@ -494,6 +547,28 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
                     {errors.issue && <p className="text-[10px] text-red-400">{errors.issue}</p>}
                   </div>
 
+                  {formData.issue === "Other Hardware/Software Fault" && (
+                    <div className="space-y-1">
+                      <label htmlFor="customIssue" className="font-label-badge text-[10px] text-amber-400 uppercase font-semibold">
+                        Specify Repair Service / Fault <span className="text-primary">*</span>
+                      </label>
+                      <input
+                        id="customIssue"
+                        type="text"
+                        value={formData.customIssue}
+                        onChange={(e) => {
+                          setFormData({ ...formData, customIssue: e.target.value });
+                          if (errors.customIssue) setErrors({ ...errors, customIssue: "" });
+                        }}
+                        placeholder="e.g. Back glass replacement, SIM tray, Mic issue..."
+                        className={`w-full h-11 px-3.5 rounded-lg bg-surface-container-lowest border text-on-surface placeholder:text-outline text-xs sm:text-sm focus:outline-none transition-colors ${
+                          errors.customIssue ? "border-red-500 ring-1 ring-red-500" : "border-white/10 focus:border-primary"
+                        }`}
+                      />
+                      {errors.customIssue && <p className="text-[10px] text-red-400">{errors.customIssue}</p>}
+                    </div>
+                  )}
+
                   {/* Description */}
                   <div className="space-y-1">
                     <label className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
@@ -511,22 +586,31 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
                   {/* Preferred Appointment Date & Time */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div className="space-y-1">
-                      <label className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
-                        Preferred Date (Optional)
+                      <label htmlFor="appointmentDate" className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
+                        Preferred Booking Date (Mon–Sat)
                       </label>
                       <input
+                        id="appointmentDate"
                         type="date"
+                        min={minDateStr || undefined}
                         value={formData.appointmentDate}
-                        onChange={(e) => setFormData({ ...formData, appointmentDate: e.target.value })}
-                        className="w-full h-11 px-3.5 rounded-lg bg-surface-container-lowest border border-white/10 text-on-surface text-xs sm:text-sm focus:outline-none focus:border-primary transition-colors"
+                        onChange={(e) => {
+                          setFormData({ ...formData, appointmentDate: e.target.value });
+                          if (errors.appointmentDate) setErrors({ ...errors, appointmentDate: "" });
+                        }}
+                        className={`w-full h-11 px-3.5 rounded-lg bg-surface-container-lowest border text-on-surface text-xs sm:text-sm focus:outline-none transition-colors ${
+                          errors.appointmentDate ? "border-red-500 ring-1 ring-red-500" : "border-white/10 focus:border-primary"
+                        }`}
                       />
+                      {errors.appointmentDate && <p className="text-[10px] text-red-400">{errors.appointmentDate}</p>}
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
+                      <label htmlFor="appointmentTime" className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold">
                         Preferred Time Slot (Optional)
                       </label>
                       <select
+                        id="appointmentTime"
                         value={formData.appointmentTime}
                         onChange={(e) => setFormData({ ...formData, appointmentTime: e.target.value })}
                         className="w-full h-11 px-3.5 rounded-lg bg-surface-container-lowest border border-white/10 text-on-surface text-xs sm:text-sm focus:outline-none focus:border-primary transition-colors"
@@ -537,6 +621,53 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
                         <option value="Evening (5:00 PM - 8:30 PM)">Evening (5:00 PM - 8:30 PM)</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Preferred Contact Method */}
+                  <div className="space-y-1.5">
+                    <span className="font-label-badge text-[10px] text-on-surface-variant uppercase font-semibold block">
+                      Preferred Contact Method
+                    </span>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, preferredContact: "whatsapp" })}
+                        className={`h-10 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+                          formData.preferredContact === "whatsapp"
+                            ? "bg-emerald-950/60 border-emerald-500 text-emerald-300"
+                            : "bg-surface-container-lowest border-white/10 text-on-surface-variant hover:border-white/25"
+                        }`}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, preferredContact: "phone" })}
+                        className={`h-10 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+                          formData.preferredContact === "phone"
+                            ? "bg-primary/15 border-primary text-primary"
+                            : "bg-surface-container-lowest border-white/10 text-on-surface-variant hover:border-white/25"
+                        }`}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Phone Call</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Anti-spam honeypot (hidden from human users) */}
+                  <div className="hidden" aria-hidden="true">
+                    <label htmlFor="website">Website</label>
+                    <input
+                      id="website"
+                      name="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={formData.website}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    />
                   </div>
 
                   {/* Customer Notice & Consent */}

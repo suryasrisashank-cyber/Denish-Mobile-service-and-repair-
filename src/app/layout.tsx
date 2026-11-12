@@ -21,6 +21,12 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.URL ||
+  "https://denish-mobile-repair.netlify.app"
+).replace(/\/+$/, "");
+
 export const metadata: Metadata = {
   title: "DENISH MOBILE REPAIRING AND SERVICE | Your Mobile, Our Care",
   description:
@@ -42,12 +48,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "DENISH MOBILE REPAIRING AND SERVICE" }],
   creator: "DENISH MOBILE REPAIRING AND SERVICE",
-  metadataBase: new URL("https://denish-mobile-repair.vercel.app"),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: "DENISH MOBILE REPAIRING AND SERVICE | Your Mobile, Our Care",
     description:
       "Your Phone. Our Priority. Reliable mobile repair solutions for your everyday needs in Gandhinagar, Gujarat. Contact our shop for assistance.",
-    url: "https://denish-mobile-repair.vercel.app",
+    url: SITE_URL,
     siteName: "DENISH MOBILE REPAIRING AND SERVICE",
     images: [
       {
