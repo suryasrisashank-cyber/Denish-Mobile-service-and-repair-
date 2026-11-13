@@ -3,9 +3,10 @@ import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session-token";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const cleanPath = pathname.replace(/\/+$/, "") || "/";
 
-  // Allow admin login endpoint and page publicly
-  if (pathname === "/admin/login" || pathname === "/api/admin/login") {
+  // Allow admin login endpoint and page publicly (with or without trailing slashes)
+  if (cleanPath === "/admin/login" || cleanPath === "/api/admin/login") {
     return NextResponse.next();
   }
 
@@ -18,7 +19,7 @@ export async function middleware(request: NextRequest) {
   const isBearerValid = bearerToken ? Boolean(await verifySessionToken(bearerToken)) : false;
 
   // Protect Admin API routes at the edge
-  if (pathname.startsWith("/api/admin")) {
+  if (cleanPath.startsWith("/api/admin")) {
     if (!isCookieValid && !isBearerValid) {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Admin authentication required." },
@@ -29,11 +30,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect Admin UI pages (/admin, /admin/new-order, /admin/orders/*)
-  if (pathname.startsWith("/admin")) {
+  if (cleanPath.startsWith("/admin")) {
     if (!isCookieValid) {
       const loginUrl = new URL("/admin/login", request.url);
-      if (pathname !== "/admin" && pathname.startsWith("/admin/")) {
-        loginUrl.searchParams.set("next", pathname);
+      if (cleanPath !== "/admin" && cleanPath.startsWith("/admin/")) {
+        loginUrl.searchParams.set("next", cleanPath);
       }
       return NextResponse.redirect(loginUrl);
     }

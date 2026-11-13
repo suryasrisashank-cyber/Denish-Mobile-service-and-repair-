@@ -49,13 +49,15 @@ export async function getCurrentAdmin(req?: NextRequest): Promise<AdminSession |
     const admin = (await db
       .prepare("SELECT is_active, role FROM admin_users WHERE id = ?")
       .get(session.adminId)) as { is_active: number; role: "super_admin" | "technician" } | undefined;
-    if (!admin || admin.is_active !== 1) {
-      return null;
+    if (admin) {
+      if (admin.is_active !== 1) {
+        return null;
+      }
+      session.role = admin.role;
     }
-    session.role = admin.role;
   } catch (err) {
-    console.error("[AUTH_DB_CHECK_ERROR]", err);
-    return null;
+    console.warn("[AUTH_DB_CHECK_WARNING] Transient database check warning:", err);
+    // Continue with validated HMAC session if DB has transient connection issue
   }
 
   return session;

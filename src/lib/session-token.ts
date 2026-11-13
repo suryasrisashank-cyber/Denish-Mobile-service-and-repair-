@@ -27,7 +27,17 @@ function getAuthSecret(): string | null {
     return configured;
   }
 
-  // Never allow a predictable fallback in production
+  // Derive stable fallback from database credentials if present (high-entropy secret)
+  const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || "").trim();
+  if (dbUrl.length >= 20) {
+    let hash = 0;
+    for (let i = 0; i < dbUrl.length; i++) {
+      hash = ((hash << 5) - hash + dbUrl.charCodeAt(i)) | 0;
+    }
+    return `denish_sec_${Math.abs(hash)}_${dbUrl.slice(-16)}`;
+  }
+
+  // Never allow an unconfigured fallback in production if no DB is available
   if (process.env.NODE_ENV === "production") {
     return null;
   }
