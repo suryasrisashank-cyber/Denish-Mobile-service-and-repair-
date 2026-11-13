@@ -13,8 +13,14 @@ for (const line of envContent.split("\n")) {
 const sql = neon(dbUrl, { fullResults: true });
 
 async function check() {
+  await sql.query("DELETE FROM repair_status_history WHERE order_id = 66");
+  await sql.query("DELETE FROM customer_notifications WHERE order_id = 66");
+  await sql.query("DELETE FROM admin_notifications WHERE order_id = 66");
+  await sql.query("DELETE FROM repair_orders WHERE id = 66");
+  await sql.query("DELETE FROM customer_records WHERE phone = '9848022338'");
+
   const orders = await sql.query(`
-    SELECT ro.id, ro.tracking_id, ro.device_brand, ro.device_model, ro.current_status, cr.id as customer_id, cr.name as customer_name, cr.phone 
+    SELECT ro.id, ro.tracking_id, ro.device_brand, ro.device_model, ro.current_status, ro.is_archived, cr.id as customer_id, cr.name as customer_name, cr.phone 
     FROM repair_orders ro 
     JOIN customer_records cr ON ro.customer_id = cr.id
     ORDER BY ro.id ASC
