@@ -38,6 +38,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# netlify
+.netlify
+
 # sqlite database
 *.sqlite
 *.sqlite3
@@ -55,3 +58,7 @@ stitch-export-2/
 
 # private keys
 *.key
+.neon
+
+.vercel
+.env*

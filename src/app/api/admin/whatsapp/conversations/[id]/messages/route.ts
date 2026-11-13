@@ -25,7 +25,7 @@ export async function GET(
     const db = getDatabase();
 
     // 1. Fetch conversation details
-    const conv = db.prepare(`
+    const conv = (await db.prepare(`
       SELECT 
         wc.*,
         ro.tracking_id as converted_tracking_id,
@@ -33,14 +33,14 @@ export async function GET(
       FROM whatsapp_conversations wc
       LEFT JOIN repair_orders ro ON wc.converted_order_id = ro.id
       WHERE wc.id = ?
-    `).get(convId) as Record<string, unknown> | undefined;
+    `).get(convId)) as Record<string, unknown> | undefined;
 
     if (!conv) {
       return NextResponse.json({ success: false, error: "Conversation not found" }, { status: 404 });
     }
 
     // 2. Fetch all messages
-    const messages = db.prepare(`
+    const messages = await db.prepare(`
       SELECT 
         id,
         conversation_id,
@@ -61,7 +61,7 @@ export async function GET(
     `).all(convId);
 
     // 3. Mark conversation as read
-    db.prepare("UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = ?").run(convId);
+    await db.prepare("UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = ?").run(convId);
 
     return NextResponse.json({
       success: true,
@@ -102,7 +102,7 @@ export async function POST(
     const db = getDatabase();
 
     // Check conversation exists
-    const conv = db.prepare("SELECT * FROM whatsapp_conversations WHERE id = ?").get(convId) as
+    const conv = (await db.prepare("SELECT * FROM whatsapp_conversations WHERE id = ?").get(convId)) as
       | { id: number; customer_phone: string; customer_name: string }
       | undefined;
 
@@ -124,15 +124,15 @@ export async function POST(
     const wamId = sendResult.messageId || null;
 
     // Save outbound message in whatsapp_messages & update conversation
-    const result = runInTransaction((txDb) => {
-      const insertMsg = txDb.prepare(`
+    const result = await runInTransaction(async (txDb) => {
+      const insertMsg = await txDb.prepare(`
         INSERT INTO whatsapp_messages (
           conversation_id, whatsapp_message_id, direction, sender_phone, recipient_phone,
           message_type, message_text, status, error_details, created_at
         ) VALUES (?, ?, 'outbound', 'DENISH_ADMIN', ?, 'text', ?, ?, ?, datetime('now'))
       `).run(convId, wamId, cleanPhone, trimmedText, status, errorDetails);
 
-      txDb.prepare(`
+      await txDb.prepare(`
         UPDATE whatsapp_conversations
         SET last_message = ?, last_message_at = datetime('now'), updated_at = datetime('now')
         WHERE id = ?

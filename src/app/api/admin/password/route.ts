@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
 
     // Verify current password against database
-    const userRow = db.prepare("SELECT password_hash FROM admin_users WHERE id = ?").get(admin.adminId) as
+    const userRow = (await db.prepare("SELECT password_hash FROM admin_users WHERE id = ?").get(admin.adminId)) as
       | { password_hash: string }
       | undefined;
 
@@ -64,14 +64,14 @@ export async function POST(request: NextRequest) {
     const newHash = bcrypt.hashSync(newPassword, 12);
 
     // Update password in database
-    db.prepare(`
+    await db.prepare(`
       UPDATE admin_users 
       SET password_hash = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(newHash, admin.adminId);
 
     // Write audit log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
       VALUES (?, 'CHANGE_PASSWORD', 'admin_users', ?, 'Admin password updated securely', datetime('now'))
     `).run(admin.adminId, String(admin.adminId));

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // If orderId provided, look up real order and customer data
     if (orderId) {
-      const order = db.prepare(`
+      const order = await db.prepare(`
         SELECT 
           ro.id, ro.tracking_id, ro.device_brand, ro.device_model, ro.service_cost,
           cr.name as customer_name, cr.phone as customer_phone
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Record admin audit log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
       VALUES (?, 'SEND_SPECIAL_MESSAGE', 'customer_notifications', ?, ?, datetime('now'))
     `).run(
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Record admin notification for outbound message dispatch
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO admin_notifications (
         type, title, message, order_id, tracking_id, customer_name, customer_phone, is_read, created_at
       ) VALUES (

@@ -3,6 +3,12 @@ const nextConfig = {
   // Ensure native addons like better-sqlite3 are externalized from webpack bundling
   experimental: {
     serverComponentsExternalPackages: ["better-sqlite3"],
+    outputFileTracingIncludes: {
+      "/**/*": [
+        "./node_modules/better-sqlite3/build/Release/**/*",
+        "./src/data/schema.sql",
+      ],
+    },
   },
 
   // Strip X-Powered-By header to prevent server fingerprinting

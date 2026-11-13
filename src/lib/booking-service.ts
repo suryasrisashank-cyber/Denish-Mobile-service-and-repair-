@@ -237,8 +237,8 @@ export async function handleCreateBookingRequest(
     }
 
     // Check database for identical booking within last 5 minutes & commit atomically
-    const txResult = runInTransaction((txDb) => {
-      const recentDuplicate = txDb
+    const txResult = await runInTransaction(async (txDb) => {
+      const recentDuplicate = (await txDb
         .prepare(
           `SELECT o.tracking_id
            FROM repair_orders o
@@ -252,7 +252,7 @@ export async function handleCreateBookingRequest(
            ORDER BY o.id DESC
            LIMIT 1`
         )
-        .get(cleanPhone, deviceBrand, deviceModel, repairService) as { tracking_id: string } | undefined;
+        .get(cleanPhone, deviceBrand, deviceModel, repairService)) as { tracking_id: string } | undefined;
 
       if (recentDuplicate) {
         return { duplicateTrackingId: recentDuplicate.tracking_id } as const;
@@ -260,19 +260,19 @@ export async function handleCreateBookingRequest(
 
       // Upsert customer record
       let customerId: number;
-      const existingCustomer = txDb
+      const existingCustomer = (await txDb
         .prepare("SELECT id FROM customer_records WHERE phone = ? ORDER BY id DESC LIMIT 1")
-        .get(cleanPhone) as { id: number } | undefined;
+        .get(cleanPhone)) as { id: number } | undefined;
 
       if (existingCustomer) {
         customerId = existingCustomer.id;
-        txDb
+        await txDb
           .prepare(
             "UPDATE customer_records SET name = ?, location = COALESCE(NULLIF(?, ''), location), updated_at = datetime('now') WHERE id = ?"
           )
           .run(name, location, customerId);
       } else {
-        const info = txDb
+        const info = await txDb
           .prepare(
             "INSERT INTO customer_records (name, phone, location, consent_whatsapp, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
           )
@@ -284,8 +284,8 @@ export async function handleCreateBookingRequest(
       let orderId = 0;
       for (let attempt = 0; attempt < 5; attempt++) {
         try {
-          trackingId = generateSecureTrackingId(txDb);
-          const info = txDb
+          trackingId = await generateSecureTrackingId(txDb);
+          const info = await txDb
             .prepare(
               `INSERT INTO repair_orders (
                  tracking_id, customer_id, device_brand, device_model,
@@ -315,7 +315,7 @@ export async function handleCreateBookingRequest(
           break;
         } catch (dbErr: unknown) {
           const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
-          if (msg.includes("UNIQUE constraint failed")) continue;
+          if (msg.includes("UNIQUE constraint failed") || msg.includes("unique constraint") || msg.includes("duplicate key")) continue;
           throw dbErr;
         }
       }
@@ -324,7 +324,7 @@ export async function handleCreateBookingRequest(
         throw new Error("Could not assign unique repair reference.");
       }
 
-      txDb
+      await txDb
         .prepare(
           `INSERT INTO repair_status_history (
              order_id, previous_status, new_status, customer_note, internal_note, created_at
@@ -337,7 +337,7 @@ export async function handleCreateBookingRequest(
         )
         .run(orderId);
 
-      txDb
+      await txDb
         .prepare(
           `INSERT INTO admin_notifications (
              type, title, message, order_id, tracking_id, customer_name, customer_phone, is_read, created_at

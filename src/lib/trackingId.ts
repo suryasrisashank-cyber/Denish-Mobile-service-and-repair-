@@ -4,7 +4,7 @@
 // Legacy Support: DEN-<token> / 10-digit mobile lookup
 
 import crypto from "crypto";
-import { getDatabase } from "./db";
+import { getDatabase, AppDatabase } from "./db";
 
 // Crockford Base32-inspired uppercase charset (avoids ambiguous 0/O/1/I)
 const SAFE_CHARSET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -33,16 +33,17 @@ function formatYyMmDd(date = new Date()): string {
  * Generates a unique, unpredictable repair reference in format `DMR-YYMMDD-XXXX`.
  * Never embeds customer phone numbers or PII.
  */
-export function generateSecureTrackingId(
-  customDb?: import("better-sqlite3").Database
-): string {
+export async function generateSecureTrackingId(
+  customDb?: AppDatabase
+): Promise<string> {
   const db = customDb || getDatabase();
   const checkStmt = db.prepare("SELECT 1 FROM repair_orders WHERE tracking_id = ?");
   const datePart = formatYyMmDd();
 
   for (let attempt = 0; attempt < 25; attempt++) {
     const candidate = `DMR-${datePart}-${generateRandomToken(4)}`;
-    if (!checkStmt.get(candidate)) {
+    const row = await checkStmt.get(candidate);
+    if (!row) {
       return candidate;
     }
   }
@@ -50,7 +51,8 @@ export function generateSecureTrackingId(
   // Fallback with 6 random characters if 4-char space experiences unusual collision
   for (let attempt = 0; attempt < 10; attempt++) {
     const candidate = `DMR-${datePart}-${generateRandomToken(6)}`;
-    if (!checkStmt.get(candidate)) {
+    const row = await checkStmt.get(candidate);
+    if (!row) {
       return candidate;
     }
   }

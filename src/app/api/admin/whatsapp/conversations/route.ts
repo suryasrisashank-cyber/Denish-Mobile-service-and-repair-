@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-    const conversations = db.prepare(`
+    const conversations = await db.prepare(`
       SELECT 
         wc.id,
         wc.customer_id,
@@ -58,14 +58,14 @@ export async function GET(request: NextRequest) {
     `).all(...params);
 
     // Global counts
-    const counts = db.prepare(`
+    const counts = (await db.prepare(`
       SELECT 
         COUNT(*) as total_conversations,
         SUM(CASE WHEN unread_count > 0 THEN 1 ELSE 0 END) as unread_conversations,
         SUM(CASE WHEN is_enquiry = 1 AND converted_order_id IS NULL THEN 1 ELSE 0 END) as pending_enquiries,
         SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END) as converted_enquiries
       FROM whatsapp_conversations
-    `).get() as Record<string, number>;
+    `).get()) as Record<string, number>;
 
     return NextResponse.json({
       success: true,

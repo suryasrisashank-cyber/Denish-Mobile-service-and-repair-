@@ -111,7 +111,7 @@ export async function GET(
       customer_name: string;
     }
 
-    const order = db.prepare(`
+    const order = (await db.prepare(`
       SELECT 
         ro.id,
         ro.tracking_id,
@@ -141,7 +141,7 @@ export async function GET(
       denPrefixed,
       isRawPhone10 ? 1 : 0,
       isRawPhone10 ? cleanTrackingId : ""
-    ) as DbOrderRow | undefined;
+    )) as DbOrderRow | undefined;
 
     if (!order) {
       return NextResponse.json(
@@ -161,7 +161,7 @@ export async function GET(
       created_at: string;
     }
 
-    const history = db.prepare(`
+    const history = (await db.prepare(`
       SELECT 
         new_status,
         customer_note,
@@ -169,7 +169,7 @@ export async function GET(
       FROM repair_status_history
       WHERE order_id = ?
       ORDER BY id ASC
-    `).all(order.id) as DbHistoryRow[];
+    `).all(order.id)) as DbHistoryRow[];
 
     const statusMeta = REPAIR_STATUSES[order.current_status] || REPAIR_STATUSES.RECEIVED;
 

@@ -1,17 +1,107 @@
 // DENISH MOBILE REPAIRING AND SERVICE
 // Database Connection & Management Layer
+// Supports Neon Serverless PostgreSQL (Primary / Vercel Production) & SQLite (Fallback)
 
-import Database from "better-sqlite3";
+import { neon, Pool } from "@neondatabase/serverless";
 import fs from "fs";
 import path from "path";
-import bcrypt from "bcryptjs";
+import { SCHEMA_SQL } from "@/lib/schema-sql";
 
-let dbInstance: Database.Database | null = null;
+export interface DbStatement {
+  get<T = unknown>(...params: unknown[]): Promise<T | undefined>;
+  all<T = unknown>(...params: unknown[]): Promise<T[]>;
+  run(...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }>;
+}
 
-export function getDatabase(): Database.Database {
-  if (dbInstance) {
-    return dbInstance;
+export interface AppDatabase {
+  prepare(sql: string): DbStatement;
+  exec(sql: string): Promise<void>;
+  pragma?(cmd: string): unknown;
+  isPostgres: boolean;
+  raw?: unknown;
+}
+
+let pgInstance: AppDatabase | null = null;
+let sqliteInstance: AppDatabase | null = null;
+
+function cleanConnectionString(url: string): string {
+  let cleaned = url.trim();
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
   }
+  return cleaned;
+}
+
+export function normalizeSqlForPostgres(sql: string): string {
+  let text = sql;
+
+  // Replace sqlite datetime/date functions
+  text = text.replace(/datetime\(\s*'now'\s*,\s*'-(\d+)\s+minutes?'\s*\)/gi, "(CURRENT_TIMESTAMP - INTERVAL '$1 minutes')");
+  text = text.replace(/datetime\(\s*'now'\s*,\s*'-(\d+)\s+days?'\s*\)/gi, "(CURRENT_TIMESTAMP - INTERVAL '$1 days')");
+  text = text.replace(/datetime\(\s*'now'\s*,\s*'-(\d+)\s+hours?'\s*\)/gi, "(CURRENT_TIMESTAMP - INTERVAL '$1 hours')");
+  text = text.replace(/datetime\(\s*'now'\s*\)/gi, "CURRENT_TIMESTAMP");
+  text = text.replace(/DATE\(\s*'now'\s*\)/gi, "CURRENT_DATE");
+  text = text.replace(/strftime\(\s*'%Y-%m'\s*,\s*updated_at\s*\)\s*=\s*strftime\(\s*'%Y-%m'\s*,\s*'now'\s*\)/gi, "to_char(updated_at, 'YYYY-MM') = to_char(CURRENT_TIMESTAMP, 'YYYY-MM')");
+  text = text.replace(/strftime\(\s*'%Y-%m'\s*,\s*ro\.updated_at\s*\)\s*=\s*strftime\(\s*'%Y-%m'\s*,\s*'now'\s*\)/gi, "to_char(ro.updated_at, 'YYYY-MM') = to_char(CURRENT_TIMESTAMP, 'YYYY-MM')");
+
+  // Replace ? placeholders with $1, $2, ...
+  let paramIndex = 1;
+  text = text.replace(/\?/g, () => `$${paramIndex++}`);
+
+  // Auto-append RETURNING id for INSERT statements if not present
+  const trimmed = text.trim();
+  if (/^INSERT\s+INTO/i.test(trimmed) && !/RETURNING\s+/i.test(trimmed)) {
+    text = `${trimmed} RETURNING id`;
+  }
+
+  return text;
+}
+
+function createNeonDatabase(connectionString: string): AppDatabase {
+  const cleanUrl = cleanConnectionString(connectionString);
+  const sql = neon(cleanUrl, { fullResults: true });
+  const pool = new Pool({ connectionString: cleanUrl });
+
+  return {
+    isPostgres: true,
+    prepare(rawSql: string): DbStatement {
+      const pgSql = normalizeSqlForPostgres(rawSql);
+
+      return {
+        async get<T = unknown>(...params: unknown[]): Promise<T | undefined> {
+          const res = await sql.query(pgSql, params);
+          return (res.rows?.[0] !== undefined ? res.rows[0] : undefined) as T | undefined;
+        },
+        async all<T = unknown>(...params: unknown[]): Promise<T[]> {
+          const res = await sql.query(pgSql, params);
+          return (res.rows || []) as T[];
+        },
+        async run(...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+          const res = await sql.query(pgSql, params);
+          const lastInsertRowid = res.rows?.[0]?.id !== undefined ? Number(res.rows[0].id) : 0;
+          return {
+            changes: res.rowCount || 0,
+            lastInsertRowid,
+          };
+        },
+      };
+    },
+    async exec(rawSql: string): Promise<void> {
+      await pool.query(rawSql);
+    },
+    pragma() {
+      // No-op in PostgreSQL
+      return null;
+    },
+  };
+}
+
+function createSqliteDatabase(): AppDatabase {
+  if (sqliteInstance) return sqliteInstance;
+
+  // Dynamically require better-sqlite3 only when PostgreSQL is not configured
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Database = require("better-sqlite3");
 
   const isServerless = Boolean(
     process.env.NETLIFY ||
@@ -23,252 +113,124 @@ export function getDatabase(): Database.Database {
   let dbPath = process.env.DATABASE_PATH;
   if (!dbPath) {
     if (isServerless) {
-      // In serverless environments (Netlify, AWS Lambda, Vercel),
-      // /var/task is read-only. Only /tmp is writable.
       const tmpDb = path.join("/tmp", "denish.sqlite");
       const repoDb = path.join(process.cwd(), "data", "denish.sqlite");
       if (fs.existsSync(repoDb) && !fs.existsSync(tmpDb)) {
-        try {
-          fs.copyFileSync(repoDb, tmpDb);
-        } catch {
-          // ignore copy error
-        }
+        try { fs.copyFileSync(repoDb, tmpDb); } catch {}
       }
       dbPath = tmpDb;
     } else {
       let dbDir = path.join(process.cwd(), "data");
       try {
-        if (!fs.existsSync(dbDir)) {
-          fs.mkdirSync(dbDir, { recursive: true });
-        }
-      } catch (err) {
-        console.warn("[DATABASE] process.cwd() not writable, using /tmp fallback:", err);
+        if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+      } catch {
         dbDir = "/tmp";
       }
       dbPath = path.join(dbDir, "denish.sqlite");
     }
   }
 
-  dbInstance = new Database(dbPath);
+  const rawDb = new Database(dbPath);
+  try { rawDb.pragma("journal_mode = WAL"); } catch { rawDb.pragma("journal_mode = DELETE"); }
+  rawDb.pragma("foreign_keys = ON");
+  rawDb.pragma("synchronous = NORMAL");
 
-  // Performance & Integrity Pragmas
-  try {
-    dbInstance.pragma("journal_mode = WAL");
-  } catch {
-    dbInstance.pragma("journal_mode = DELETE");
-  }
-  dbInstance.pragma("foreign_keys = ON");
-  dbInstance.pragma("synchronous = NORMAL");
-
-  // Run schema migration
   const schemaPath = path.join(process.cwd(), "src", "data", "schema.sql");
-  if (fs.existsSync(schemaPath)) {
-    const schemaSql = fs.readFileSync(schemaPath, "utf8");
-    dbInstance.exec(schemaSql);
-  }
+  const schemaSql = fs.existsSync(schemaPath) ? fs.readFileSync(schemaPath, "utf8") : SCHEMA_SQL;
+  rawDb.exec(schemaSql);
 
-  // Ensure column and constraint migrations
-  runSchemaMigrations(dbInstance);
+  sqliteInstance = {
+    isPostgres: false,
+    prepare(sql: string) {
+      const stmt = rawDb.prepare(sql);
+      return {
+        async get(...params: unknown[]) { return stmt.get(...params); },
+        async all(...params: unknown[]) { return stmt.all(...params); },
+        async run(...params: unknown[]) { return stmt.run(...params); },
+      };
+    },
+    async exec(sql: string) {
+      rawDb.exec(sql);
+    },
+    pragma(cmd: string) {
+      return rawDb.pragma(cmd);
+    },
+    raw: rawDb,
+  };
 
-  // Check if any admin exists. If not, seed initial admin via env vars or default setup
-  seedInitialAdmin(dbInstance);
-
-  return dbInstance;
+  return sqliteInstance;
 }
 
-function runSchemaMigrations(db: Database.Database) {
-  try {
-    // 1. Ensure location column exists in customer_records
-    const cols = db.prepare("PRAGMA table_info(customer_records)").all() as Array<{ name: string }>;
-    if (cols.length > 0 && !cols.some((c) => c.name === "location")) {
-      db.prepare("ALTER TABLE customer_records ADD COLUMN location TEXT").run();
-      console.log("[MIGRATION] Added location column to customer_records table.");
-    }
+export function getDatabase(): AppDatabase {
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
-    // 2. Ensure repair_orders table supports NEW_REQUEST in check constraint
-    const orderSql = db.prepare("SELECT sql FROM sqlite_master WHERE name='repair_orders'").get() as { sql: string } | undefined;
-    if (orderSql && !orderSql.sql.includes("NEW_REQUEST")) {
-      db.pragma("foreign_keys = OFF");
-      db.exec(`
-        BEGIN TRANSACTION;
-        CREATE TABLE repair_orders_new (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          tracking_id TEXT UNIQUE NOT NULL COLLATE NOCASE,
-          customer_id INTEGER NOT NULL REFERENCES customer_records(id) ON DELETE RESTRICT,
-          device_brand TEXT NOT NULL,
-          device_model TEXT NOT NULL,
-          imei_serial TEXT,
-          repair_category TEXT NOT NULL,
-          reported_issue TEXT NOT NULL,
-          inspection_notes TEXT,
-          estimated_completion TEXT,
-          service_cost REAL,
-          current_status TEXT NOT NULL DEFAULT 'NEW_REQUEST' CHECK(current_status IN (
-            'NEW_REQUEST',
-            'RECEIVED',
-            'UNDER_INSPECTION',
-            'WAITING_FOR_APPROVAL',
-            'WAITING_FOR_PARTS',
-            'REPAIRING',
-            'QUALITY_CHECK',
-            'COMPLETED',
-            'READY_FOR_PICKUP',
-            'DELIVERED',
-            'CANCELLED'
-          )),
-          pickup_ready INTEGER NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        INSERT INTO repair_orders_new SELECT * FROM repair_orders;
-        DROP TABLE repair_orders;
-        ALTER TABLE repair_orders_new RENAME TO repair_orders;
-        CREATE INDEX IF NOT EXISTS idx_repair_orders_tracking_id ON repair_orders(tracking_id);
-        COMMIT;
-      `);
-      db.pragma("foreign_keys = ON");
-      console.log("[MIGRATION] Updated repair_orders constraint to include NEW_REQUEST.");
+  if (databaseUrl && databaseUrl.trim().length > 0) {
+    if (!pgInstance) {
+      pgInstance = createNeonDatabase(databaseUrl);
     }
-
-    // 3. Ensure source, customer_type, and paid columns exist in repair_orders table
-    const orderCols = db.prepare("PRAGMA table_info(repair_orders)").all() as Array<{ name: string }>;
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "source")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN source TEXT NOT NULL DEFAULT 'CUSTOMER_WEBSITE'").run();
-      console.log("[MIGRATION] Added source column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "customer_type")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN customer_type TEXT NOT NULL DEFAULT 'Customer'").run();
-      console.log("[MIGRATION] Added customer_type column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "paid")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN paid INTEGER NOT NULL DEFAULT 0").run();
-      console.log("[MIGRATION] Added paid column to repair_orders table.");
-    }
-
-    // 4. Soft-delete / Archive columns in repair_orders table
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "is_archived")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0").run();
-      console.log("[MIGRATION] Added is_archived column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "archived_at")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN archived_at TEXT").run();
-      console.log("[MIGRATION] Added archived_at column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "archived_by_admin_id")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN archived_by_admin_id INTEGER REFERENCES admin_users(id)").run();
-      console.log("[MIGRATION] Added archived_by_admin_id column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "archive_reason")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN archive_reason TEXT").run();
-      console.log("[MIGRATION] Added archive_reason column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "preferred_booking_date")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN preferred_booking_date TEXT").run();
-      console.log("[MIGRATION] Added preferred_booking_date column to repair_orders table.");
-    }
-    if (orderCols.length > 0 && !orderCols.some((c) => c.name === "preferred_contact_method")) {
-      db.prepare("ALTER TABLE repair_orders ADD COLUMN preferred_contact_method TEXT NOT NULL DEFAULT 'whatsapp'").run();
-      console.log("[MIGRATION] Added preferred_contact_method column to repair_orders table.");
-    }
-
-    // 5. Normalize legacy 'CUSTOMER_REQUEST' source values to 'CUSTOMER_WEBSITE'
-    db.prepare("UPDATE repair_orders SET source = 'CUSTOMER_WEBSITE' WHERE source = 'CUSTOMER_REQUEST'").run();
-
-    // 6. Ensure WhatsApp tables exist
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS whatsapp_conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER REFERENCES customer_records(id),
-        customer_phone TEXT UNIQUE NOT NULL,
-        customer_name TEXT,
-        last_message TEXT,
-        last_message_at TEXT,
-        unread_count INTEGER DEFAULT 0,
-        is_enquiry INTEGER DEFAULT 1,
-        converted_order_id INTEGER REFERENCES repair_orders(id) ON DELETE SET NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE TABLE IF NOT EXISTS whatsapp_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER NOT NULL REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
-        whatsapp_message_id TEXT UNIQUE,
-        direction TEXT NOT NULL CHECK(direction IN ('inbound', 'outbound')),
-        sender_phone TEXT NOT NULL,
-        recipient_phone TEXT NOT NULL,
-        message_type TEXT NOT NULL DEFAULT 'text',
-        message_text TEXT,
-        media_url TEXT,
-        media_mime_type TEXT,
-        status TEXT NOT NULL DEFAULT 'received' CHECK(status IN ('received', 'sent', 'delivered', 'read', 'failed')),
-        error_details TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_repair_orders_archived ON repair_orders(is_archived);
-      CREATE INDEX IF NOT EXISTS idx_wa_conv_phone ON whatsapp_conversations(customer_phone);
-      CREATE INDEX IF NOT EXISTS idx_wa_msg_conv ON whatsapp_messages(conversation_id);
-      CREATE INDEX IF NOT EXISTS idx_wa_msg_wam_id ON whatsapp_messages(whatsapp_message_id);
-
-      -- 7. Ensure admin_notifications table exists for genuine operational alerts
-      CREATE TABLE IF NOT EXISTS admin_notifications (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        type TEXT NOT NULL CHECK(type IN ('SERVICE_REQUEST', 'INCOMING_WHATSAPP', 'STATUS_UPDATE', 'OUTGOING_MESSAGE', 'SYSTEM_ALERT')),
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        order_id INTEGER REFERENCES repair_orders(id) ON DELETE CASCADE,
-        conversation_id INTEGER REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
-        tracking_id TEXT,
-        customer_name TEXT,
-        customer_phone TEXT,
-        is_read INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_admin_notif_read ON admin_notifications(is_read);
-      CREATE INDEX IF NOT EXISTS idx_admin_notif_type ON admin_notifications(type);
-      CREATE INDEX IF NOT EXISTS idx_admin_notif_created ON admin_notifications(created_at DESC);
-    `);
-  } catch (err) {
-    console.error("[MIGRATION_ERROR]", err);
+    return pgInstance;
   }
-}
 
-function seedInitialAdmin(db: Database.Database) {
-  try {
-    const countRow = db.prepare("SELECT COUNT(*) as c FROM admin_users").get() as { c: number } | undefined;
-    if (countRow && countRow.c > 0) {
-      return;
-    }
-
-    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim();
-    const initialUsername = (process.env.ADMIN_INITIAL_USERNAME || "denish_admin").trim().toLowerCase();
-    const initialEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@denishmobile.com").trim().toLowerCase();
-
-    if (!initialPassword || initialPassword.length < 10) {
-      console.warn(
-        "[AUTH_SETUP_REQUIRED] No admin_users found. Set ADMIN_INITIAL_PASSWORD (>= 10 chars) or run `node scripts/create-admin.js <username> <email> <password> super_admin` to provision the owner account."
-      );
-      return;
-    }
-
-    const passwordHash = bcrypt.hashSync(initialPassword, 12);
-    db.prepare(`
-      INSERT INTO admin_users (username, email, password_hash, role, name, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, 'super_admin', 'Denish Workshop Admin', 1, datetime('now'), datetime('now'))
-    `).run(initialUsername, initialEmail, passwordHash);
-    console.log(`[DATABASE] Initial super_admin provisioned: ${initialUsername}`);
-  } catch (err) {
-    console.error("[DATABASE_SEED_ERROR]", err);
-  }
+  return createSqliteDatabase();
 }
 
 /**
  * Executes a function within an atomic transaction.
  */
-export function runInTransaction<T>(fn: (db: Database.Database) => T): T {
+export async function runInTransaction<T>(fn: (db: AppDatabase) => Promise<T> | T): Promise<T> {
   const db = getDatabase();
-  const tx = db.transaction(() => fn(db));
-  return tx();
+
+  if (db.isPostgres) {
+    const databaseUrl = cleanConnectionString((process.env.DATABASE_URL || process.env.POSTGRES_URL)!);
+    const pool = new Pool({ connectionString: databaseUrl });
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const txDb: AppDatabase = {
+        isPostgres: true,
+        prepare(rawSql: string): DbStatement {
+          const pgSql = normalizeSqlForPostgres(rawSql);
+          return {
+            async get<T = unknown>(...params: unknown[]): Promise<T | undefined> {
+              const res = await client.query(pgSql, params);
+              return (res.rows?.[0] !== undefined ? res.rows[0] : undefined) as T | undefined;
+            },
+            async all<T = unknown>(...params: unknown[]): Promise<T[]> {
+              const res = await client.query(pgSql, params);
+              return (res.rows || []) as T[];
+            },
+            async run(...params: unknown[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+              const res = await client.query(pgSql, params);
+              const lastInsertRowid = res.rows?.[0]?.id !== undefined ? Number(res.rows[0].id) : 0;
+              return { changes: res.rowCount || 0, lastInsertRowid };
+            },
+          };
+        },
+        async exec(rawSql: string): Promise<void> {
+          await client.query(rawSql);
+        },
+        pragma() { return null; },
+      };
+
+      const result = await fn(txDb);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  // SQLite fallback
+  const sqlite = db as unknown as { raw?: { transaction: (cb: () => unknown) => () => unknown } };
+  if (sqlite.raw) {
+    const tx = sqlite.raw.transaction(() => fn(db));
+    return tx() as T;
+  }
+
+  return fn(db);
 }

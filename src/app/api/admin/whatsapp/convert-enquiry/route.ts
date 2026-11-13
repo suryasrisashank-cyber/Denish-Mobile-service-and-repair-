@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
 
     // 1. Fetch conversation
-    const conv = db.prepare("SELECT * FROM whatsapp_conversations WHERE id = ?").get(convId) as
+    const conv = (await db.prepare("SELECT * FROM whatsapp_conversations WHERE id = ?").get(convId)) as
       | { id: number; customer_id: number | null; customer_phone: string; customer_name: string; converted_order_id: number | null }
       | undefined;
 
@@ -63,18 +63,18 @@ export async function POST(request: NextRequest) {
     const cost = serviceCost ? Number(serviceCost) : null;
 
     // 2. Generate Tracking ID
-    const trackingId = generateSecureTrackingId();
+    const trackingId = await generateSecureTrackingId();
 
     // 3. Atomic transaction: Customer -> Repair Order -> Status History -> Update Conversation -> Audit Log
-    const result = runInTransaction((txDb) => {
+    const result = await runInTransaction(async (txDb) => {
       // Find or create customer
       let customerId = conv.customer_id;
       if (!customerId) {
-        const existingCust = txDb.prepare("SELECT id FROM customer_records WHERE phone = ?").get(cleanPhone) as { id: number } | undefined;
+        const existingCust = (await txDb.prepare("SELECT id FROM customer_records WHERE phone = ?").get(cleanPhone)) as { id: number } | undefined;
         if (existingCust) {
           customerId = existingCust.id;
         } else {
-          const insertCust = txDb.prepare(`
+          const insertCust = await txDb.prepare(`
             INSERT INTO customer_records (name, phone, location, consent_whatsapp, created_at, updated_at)
             VALUES (?, ?, ?, 1, datetime('now'), datetime('now'))
           `).run(finalName, cleanPhone, customerLocation.trim());
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Insert Repair Order (source: 'ADMIN_CREATED')
-      const insertOrder = txDb.prepare(`
+      const insertOrder = await txDb.prepare(`
         INSERT INTO repair_orders (
           tracking_id, customer_id, device_brand, device_model,
           repair_category, reported_issue, inspection_notes, estimated_completion,
@@ -105,14 +105,14 @@ export async function POST(request: NextRequest) {
       const orderId = Number(insertOrder.lastInsertRowid);
 
       // Insert status history
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO repair_status_history (
           order_id, previous_status, new_status, customer_note, internal_note, updated_by_admin_id, created_at
         ) VALUES (?, NULL, 'RECEIVED', 'Device checked in following customer WhatsApp enquiry.', 'Converted from WhatsApp enquiry.', ?, datetime('now'))
       `).run(orderId, admin.adminId);
 
       // Update conversation to mark as converted and no longer pending enquiry
-      txDb.prepare(`
+      await txDb.prepare(`
         UPDATE whatsapp_conversations
         SET 
           converted_order_id = ?,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       `).run(orderId, customerId, finalName, convId);
 
       // Insert system note message in conversation
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO whatsapp_messages (
           conversation_id, direction, sender_phone, recipient_phone,
           message_type, message_text, status, created_at
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       `).run(convId, cleanPhone, `[System]: Converted enquiry into Repair Order #${orderId} (Tracking ID: ${trackingId})`);
 
       // Audit log
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'CONVERT_WHATSAPP_ENQUIRY', 'repair_orders', ?, ?, datetime('now'))
       `).run(

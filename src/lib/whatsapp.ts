@@ -358,7 +358,7 @@ export async function sendCloudApiWhatsApp(
     const db = getDatabase();
     if (response.ok && result.messages?.[0]?.id) {
       const messageId = result.messages[0].id;
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO customer_notifications (
           order_id, channel, recipient_phone, message_template, message_body, provider_message_id, status, created_at
         ) VALUES (?, 'whatsapp', ?, ?, ?, ?, 'sent', datetime('now'))
@@ -367,7 +367,7 @@ export async function sendCloudApiWhatsApp(
       return { success: true, messageId };
     } else {
       const errorMsg = result.error?.message || "Cloud API returned unsuccessful response";
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO customer_notifications (
           order_id, channel, recipient_phone, message_template, message_body, status, error_details, created_at
         ) VALUES (?, 'whatsapp', ?, ?, ?, 'failed', ?, datetime('now'))
@@ -427,7 +427,7 @@ export async function sendWhatsAppDirectMessage(params: {
 
     if (res.ok && result.messages?.[0]?.id) {
       const messageId = result.messages[0].id;
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO customer_notifications (
           order_id, channel, recipient_phone, message_template, message_body, provider_message_id, status, created_at
         ) VALUES (?, 'whatsapp', ?, ?, ?, ?, 'sent', datetime('now'))
@@ -436,7 +436,7 @@ export async function sendWhatsAppDirectMessage(params: {
       return { success: true, messageId, mode: "cloud_api" };
     } else {
       const errorMsg = result.error?.message || "Cloud API returned unsuccessful response";
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO customer_notifications (
           order_id, channel, recipient_phone, message_template, message_body, status, error_details, created_at
         ) VALUES (?, 'whatsapp', ?, ?, ?, 'failed', ?, datetime('now'))

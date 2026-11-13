@@ -91,7 +91,7 @@ export async function GET(
       consent_whatsapp: number;
     }
 
-    const order = orderStmt.get(orderId) as DbOrder | undefined;
+    const order = (await orderStmt.get(orderId)) as DbOrder | undefined;
     if (!order) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
@@ -108,7 +108,7 @@ export async function GET(
       admin_username: string | null;
     }
 
-    const history = db.prepare(`
+    const history = (await db.prepare(`
       SELECT 
         rsh.id,
         rsh.previous_status,
@@ -122,10 +122,10 @@ export async function GET(
       LEFT JOIN admin_users au ON rsh.updated_by_admin_id = au.id
       WHERE rsh.order_id = ?
       ORDER BY rsh.id ASC
-    `).all(orderId) as DbHistory[];
+    `).all(orderId)) as DbHistory[];
 
     // 3. Fetch Notification History
-    const notifications = db.prepare(`
+    const notifications = await db.prepare(`
       SELECT 
         id, channel, recipient_phone, message_template, status, created_at
       FROM customer_notifications
@@ -227,12 +227,12 @@ export async function PUT(
 
     const db = getDatabase();
 
-    const existingOrder = db.prepare(`
+    const existingOrder = (await db.prepare(`
       SELECT ro.*, cr.name as customer_name, cr.phone as customer_phone
       FROM repair_orders ro
       JOIN customer_records cr ON ro.customer_id = cr.id
       WHERE ro.id = ?
-    `).get(orderId) as Record<string, unknown> | undefined;
+    `).get(orderId)) as Record<string, unknown> | undefined;
 
     if (!existingOrder) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
@@ -248,62 +248,76 @@ export async function PUT(
     const paidVal = paid !== undefined ? (paid ? 1 : 0) : (existingOrder.paid as number);
     const pickupReadyVal = targetStatus === "READY_FOR_PICKUP" ? 1 : (existingOrder.pickup_ready as number);
 
-    runInTransaction((txDb) => {
+    const finalCustomerName = customerName?.trim() || (existingOrder.customer_name as string);
+    const finalCustomerPhone = cleanPhone || (existingOrder.customer_phone as string);
+    const finalCustomerLocation = customerLocation !== undefined ? (customerLocation?.trim() || null) : (existingOrder.customer_location as string | null);
+    const finalCustomerEmail = customerEmail !== undefined ? (customerEmail?.trim() || null) : (existingOrder.customer_email as string | null);
+
+    const finalDeviceBrand = deviceBrand?.trim() || (existingOrder.device_brand as string);
+    const finalDeviceModel = deviceModel?.trim() || (existingOrder.device_model as string);
+    const finalImeiSerial = imeiSerial !== undefined ? (imeiSerial?.trim() || null) : (existingOrder.imei_serial as string | null);
+    const finalRepairCategory = repairCategory?.trim() || (existingOrder.repair_category as string);
+    const finalReportedIssue = reportedIssue?.trim() || (existingOrder.reported_issue as string);
+    const finalInspectionNotes = inspectionNotes !== undefined ? (inspectionNotes?.trim() || null) : (existingOrder.inspection_notes as string | null);
+    const finalEstimatedCompletion = estimatedCompletion !== undefined ? estimatedCompletion : (existingOrder.estimated_completion as string | null);
+    const finalCustomerType = customerType?.trim() || (existingOrder.customer_type as string);
+
+    await runInTransaction(async (txDb) => {
       // 1. Update customer record
-      txDb.prepare(`
+      await txDb.prepare(`
         UPDATE customer_records
         SET 
-          name = COALESCE(?, name),
-          phone = COALESCE(?, phone),
-          location = COALESCE(?, location),
-          email = COALESCE(?, email),
+          name = ?,
+          phone = ?,
+          location = ?,
+          email = ?,
           updated_at = datetime('now')
         WHERE id = ?
       `).run(
-        customerName?.trim() || null,
-        cleanPhone || null,
-        customerLocation?.trim() || null,
-        customerEmail?.trim() || null,
+        finalCustomerName,
+        finalCustomerPhone,
+        finalCustomerLocation,
+        finalCustomerEmail,
         existingOrder.customer_id
       );
 
       // 2. Update repair order
-      txDb.prepare(`
+      await txDb.prepare(`
         UPDATE repair_orders
         SET 
-          device_brand = COALESCE(?, device_brand),
-          device_model = COALESCE(?, device_model),
-          imei_serial = COALESCE(?, imei_serial),
-          repair_category = COALESCE(?, repair_category),
-          reported_issue = COALESCE(?, reported_issue),
-          inspection_notes = COALESCE(?, inspection_notes),
-          estimated_completion = COALESCE(?, estimated_completion),
+          device_brand = ?,
+          device_model = ?,
+          imei_serial = ?,
+          repair_category = ?,
+          reported_issue = ?,
+          inspection_notes = ?,
+          estimated_completion = ?,
           service_cost = ?,
           current_status = ?,
           pickup_ready = ?,
           paid = ?,
-          customer_type = COALESCE(?, customer_type),
+          customer_type = ?,
           updated_at = datetime('now')
         WHERE id = ?
       `).run(
-        deviceBrand?.trim() || null,
-        deviceModel?.trim() || null,
-        imeiSerial?.trim() || null,
-        repairCategory?.trim() || null,
-        reportedIssue?.trim() || null,
-        inspectionNotes?.trim() || null,
-        estimatedCompletion || null,
+        finalDeviceBrand,
+        finalDeviceModel,
+        finalImeiSerial,
+        finalRepairCategory,
+        finalReportedIssue,
+        finalInspectionNotes,
+        finalEstimatedCompletion,
         cost,
         targetStatus,
         pickupReadyVal,
         paidVal,
-        customerType || null,
+        finalCustomerType,
         orderId
       );
 
       // 3. Status History if status changed or notes provided
       if (targetStatus !== previousStatus || internalNote) {
-        txDb.prepare(`
+        await txDb.prepare(`
           INSERT INTO repair_status_history (
             order_id, previous_status, new_status, customer_note, internal_note, updated_by_admin_id, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
@@ -318,7 +332,7 @@ export async function PUT(
       }
 
       // 4. Audit Log
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'EDIT_ORDER', 'repair_orders', ?, ?, datetime('now'))
       `).run(
@@ -386,12 +400,12 @@ export async function PATCH(
     const db = getDatabase();
 
     // 1. Fetch current order
-    const currentOrder = db.prepare(`
+    const currentOrder = (await db.prepare(`
       SELECT ro.*, cr.name as customer_name, cr.phone as customer_phone
       FROM repair_orders ro
       JOIN customer_records cr ON ro.customer_id = cr.id
       WHERE ro.id = ?
-    `).get(orderId) as Record<string, unknown> | undefined;
+    `).get(orderId)) as Record<string, unknown> | undefined;
 
     if (!currentOrder) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
@@ -410,36 +424,41 @@ export async function PATCH(
 
     const paidVal = paid !== undefined ? (paid ? 1 : 0) : null;
 
+    const finalEstimatedCompletion = estimatedCompletion !== undefined ? estimatedCompletion : (currentOrder.estimated_completion as string | null);
+    const finalServiceCost = serviceCost !== undefined && serviceCost !== null ? Number(serviceCost) : (currentOrder.service_cost as number | null);
+    const finalInspectionNotes = internalNote ? internalNote : (currentOrder.inspection_notes as string | null);
+    const finalPaid = paidVal !== null ? paidVal : (currentOrder.paid as number);
+    const finalCustomerType = customerType || (currentOrder.customer_type as string);
+
     // 2. Perform atomic update in transaction
-    runInTransaction((txDb) => {
+    await runInTransaction(async (txDb) => {
       // Update order
-      txDb.prepare(`
+      await txDb.prepare(`
         UPDATE repair_orders
         SET 
           current_status = ?,
           pickup_ready = ?,
-          estimated_completion = COALESCE(?, estimated_completion),
-          service_cost = COALESCE(?, service_cost),
-          inspection_notes = COALESCE(?, inspection_notes),
-          paid = CASE WHEN ? IS NOT NULL THEN ? ELSE paid END,
-          customer_type = COALESCE(?, customer_type),
+          estimated_completion = ?,
+          service_cost = ?,
+          inspection_notes = ?,
+          paid = ?,
+          customer_type = ?,
           updated_at = datetime('now')
         WHERE id = ?
       `).run(
         targetStatus,
         isPickupReady,
-        estimatedCompletion !== undefined ? estimatedCompletion : null,
-        serviceCost !== undefined && serviceCost !== null ? Number(serviceCost) : null,
-        internalNote ? internalNote : null,
-        paidVal,
-        paidVal,
-        customerType || null,
+        finalEstimatedCompletion,
+        finalServiceCost,
+        finalInspectionNotes,
+        finalPaid,
+        finalCustomerType,
         orderId
       );
 
       // If status changed or a customer note was provided, insert status history
       if (targetStatus !== previousStatus || customerNote || internalNote) {
-        txDb.prepare(`
+        await txDb.prepare(`
           INSERT INTO repair_status_history (
             order_id, previous_status, new_status, customer_note, internal_note, updated_by_admin_id, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
@@ -454,7 +473,7 @@ export async function PATCH(
 
         // Genuine Admin Notification for Status Update
         const statusLabel = REPAIR_STATUSES[targetStatus]?.label || targetStatus;
-        txDb.prepare(`
+        await txDb.prepare(`
           INSERT INTO admin_notifications (
             type, title, message, order_id, tracking_id, customer_name, customer_phone, is_read, created_at
           ) VALUES (
@@ -478,7 +497,7 @@ export async function PATCH(
       }
 
       // Record audit log
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'UPDATE_ORDER_STATUS', 'repair_orders', ?, ?, datetime('now'))
       `).run(
@@ -546,7 +565,7 @@ export async function DELETE(
 
     const db = getDatabase();
 
-    const existingOrder = db.prepare("SELECT id, tracking_id FROM repair_orders WHERE id = ?").get(orderId) as
+    const existingOrder = (await db.prepare("SELECT id, tracking_id FROM repair_orders WHERE id = ?").get(orderId)) as
       | { id: number; tracking_id: string }
       | undefined;
 
@@ -554,8 +573,8 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
 
-    runInTransaction((txDb) => {
-      txDb.prepare(`
+    await runInTransaction(async (txDb) => {
+      await txDb.prepare(`
         UPDATE repair_orders
         SET 
           is_archived = 1,
@@ -566,7 +585,7 @@ export async function DELETE(
         WHERE id = ?
       `).run(admin.adminId, reason, orderId);
 
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'ARCHIVE_ORDER', 'repair_orders', ?, ?, datetime('now'))
       `).run(admin.adminId, String(orderId), `Order archived: ${reason}`);

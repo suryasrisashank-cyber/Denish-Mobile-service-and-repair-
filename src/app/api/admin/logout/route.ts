@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (admin) {
     try {
       const db = getDatabase();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'ADMIN_LOGOUT', 'admin_users', ?, 'Admin logged out', datetime('now'))
       `).run(admin.adminId, String(admin.adminId));

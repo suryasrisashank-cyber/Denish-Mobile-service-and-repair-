@@ -62,12 +62,12 @@ export async function POST(request: NextRequest) {
       is_active: number;
     }
 
-    const admin = db.prepare(`
+    const admin = (await db.prepare(`
       SELECT id, username, email, password_hash, role, name, is_active
       FROM admin_users
       WHERE LOWER(username) = ? OR LOWER(email) = ?
       LIMIT 1
-    `).get(cleanUsername, cleanUsername) as DbAdminRow | undefined;
+    `).get(cleanUsername, cleanUsername)) as DbAdminRow | undefined;
 
     if (!admin || admin.is_active !== 1) {
       recordFailedAttempt(ip);
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Record audit log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, ip_address, created_at)
       VALUES (?, 'ADMIN_LOGIN', 'admin_users', ?, 'Successful admin portal sign-in', ?, datetime('now'))
     `).run(admin.id, String(admin.id), ip);

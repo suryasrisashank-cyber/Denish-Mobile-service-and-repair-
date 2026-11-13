@@ -93,14 +93,14 @@ export async function POST(request: NextRequest) {
 
         if (messageId && status) {
           // Update customer_notifications
-          db.prepare(`
+          await db.prepare(`
             UPDATE customer_notifications
             SET status = ?, error_details = COALESCE(?, error_details)
             WHERE provider_message_id = ?
           `).run(status, errorMsg, messageId);
 
           // Update whatsapp_messages
-          db.prepare(`
+          await db.prepare(`
             UPDATE whatsapp_messages
             SET status = ?, error_details = COALESCE(?, error_details)
             WHERE whatsapp_message_id = ?
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
 
         // Deduplication: Skip if message ID was already processed
         if (wamId) {
-          const existing = db.prepare("SELECT id FROM whatsapp_messages WHERE whatsapp_message_id = ?").get(wamId);
+          const existing = await db.prepare("SELECT id FROM whatsapp_messages WHERE whatsapp_message_id = ?").get(wamId);
           if (existing) {
             console.log(`[WHATSAPP_WEBHOOK] Skipping duplicate message: ${wamId}`);
             continue;
@@ -159,9 +159,9 @@ export async function POST(request: NextRequest) {
         let isNewConv = false;
         let finalConvId = 0;
 
-        runInTransaction((txDb) => {
+        await runInTransaction(async (txDb) => {
           // Check if customer is registered in customer_records
-          const customer = txDb.prepare(`
+          const customer = await txDb.prepare(`
             SELECT id, name FROM customer_records WHERE phone = ? OR phone = ? LIMIT 1
           `).get(cleanPhone, cleanPhone.replace(/^91/, "")) as { id: number; name: string } | undefined;
 
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
           const customerName = customer?.name || contactProfile || `WhatsApp User (+${cleanPhone})`;
 
           // Find or create conversation
-          const conv = txDb.prepare("SELECT id, unread_count FROM whatsapp_conversations WHERE customer_phone = ?").get(cleanPhone) as
+          const conv = await txDb.prepare("SELECT id, unread_count FROM whatsapp_conversations WHERE customer_phone = ?").get(cleanPhone) as
             | { id: number; unread_count: number }
             | undefined;
 
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
           let convId: number;
           if (conv) {
             convId = conv.id;
-            txDb.prepare(`
+            await txDb.prepare(`
               UPDATE whatsapp_conversations
               SET 
                 last_message = ?,
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
               WHERE id = ?
             `).run(messageText, customerName, customerId, convId);
           } else {
-            const insertConv = txDb.prepare(`
+            const insertConv = await txDb.prepare(`
               INSERT INTO whatsapp_conversations (
                 customer_id, customer_phone, customer_name, last_message, last_message_at, unread_count, is_enquiry, created_at, updated_at
               ) VALUES (?, ?, ?, ?, datetime('now'), 1, 1, datetime('now'), datetime('now'))
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
           finalConvId = convId;
 
           // Insert incoming message
-          txDb.prepare(`
+          await txDb.prepare(`
             INSERT INTO whatsapp_messages (
               conversation_id, whatsapp_message_id, direction, sender_phone, recipient_phone,
               message_type, message_text, media_url, media_mime_type, status, created_at
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
           );
 
           // Create genuine Admin Notification for incoming WhatsApp message
-          txDb.prepare(`
+          await txDb.prepare(`
             INSERT INTO admin_notifications (
               type, title, message, conversation_id, customer_name, customer_phone, is_read, created_at
             ) VALUES (
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
               templateName: "automatic_welcome",
             });
             if (welcomeResult.success) {
-              db.prepare(`
+              await db.prepare(`
                 INSERT INTO whatsapp_messages (
                   conversation_id, whatsapp_message_id, direction, sender_phone, recipient_phone,
                   message_type, message_text, status, created_at

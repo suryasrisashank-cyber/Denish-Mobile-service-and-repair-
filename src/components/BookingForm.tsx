@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { parseApiResponse } from '@/lib/parse-api-response';
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -55,6 +56,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     const cleanPhone = phone.replace(/\D/g, '');
@@ -101,14 +103,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         })
       });
 
-      const data = await response.json();
+      const parsed = await parseApiResponse<{
+        order?: Parameters<typeof onOrderCreated>[0];
+      }>(response, 'Failed to submit booking. Please check your details and try again.');
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit booking');
+      if (!parsed.ok || !parsed.data?.order) {
+        throw new Error(parsed.errorMessage || 'Failed to submit booking');
       }
 
-      setCreatedOrder(data.order);
-      onOrderCreated(data.order);
+      setCreatedOrder(parsed.data.order);
+      onOrderCreated(parsed.data.order);
     } catch (err: unknown) {
       setErrorMessage((err as Error).message || 'Network error occurred. Please try again.');
     } finally {

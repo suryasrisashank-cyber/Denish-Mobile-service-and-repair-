@@ -22,7 +22,7 @@ export async function POST(
   try {
     const db = getDatabase();
 
-    const existingOrder = db.prepare("SELECT id, tracking_id, is_archived FROM repair_orders WHERE id = ?").get(orderId) as
+    const existingOrder = (await db.prepare("SELECT id, tracking_id, is_archived FROM repair_orders WHERE id = ?").get(orderId)) as
       | { id: number; tracking_id: string; is_archived: number }
       | undefined;
 
@@ -34,8 +34,8 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Order is already active" }, { status: 400 });
     }
 
-    runInTransaction((txDb) => {
-      txDb.prepare(`
+    await runInTransaction(async (txDb) => {
+      await txDb.prepare(`
         UPDATE repair_orders
         SET 
           is_archived = 0,
@@ -46,7 +46,7 @@ export async function POST(
         WHERE id = ?
       `).run(orderId);
 
-      txDb.prepare(`
+      await txDb.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'RESTORE_ORDER', 'repair_orders', ?, 'Order restored to active view', datetime('now'))
       `).run(admin.adminId, String(orderId));

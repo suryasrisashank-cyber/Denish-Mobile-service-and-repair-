@@ -46,9 +46,9 @@ export async function getCurrentAdmin(req?: NextRequest): Promise<AdminSession |
   // Verify the admin user still exists and is active in the database
   try {
     const db = getDatabase();
-    const admin = db
+    const admin = (await db
       .prepare("SELECT is_active, role FROM admin_users WHERE id = ?")
-      .get(session.adminId) as { is_active: number; role: "super_admin" | "technician" } | undefined;
+      .get(session.adminId)) as { is_active: number; role: "super_admin" | "technician" } | undefined;
     if (!admin || admin.is_active !== 1) {
       return null;
     }

@@ -63,7 +63,7 @@ export async function GET(
 
     const db = getDatabase();
 
-    const rows = db
+    const rows = (await db
       .prepare(
         `SELECT 
           o.id,
@@ -95,7 +95,7 @@ export async function GET(
         ORDER BY o.id DESC
         LIMIT 10`
       )
-      .all(cleanId, isPhoneQuery ? 1 : 0, phone10) as Array<{
+      .all(cleanId, isPhoneQuery ? 1 : 0, phone10)) as Array<{
       id: number;
       tracking_id: string;
       device_brand: string;

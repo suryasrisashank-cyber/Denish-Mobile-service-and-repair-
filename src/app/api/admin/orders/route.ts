@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const db = getDatabase();
 
     // 1. Calculate Real Statistics From Actual Active Database Records Only (Excluding Archived)
-    const metricsRow = db.prepare(`
+    const metricsRow = (await db.prepare(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN current_status = 'NEW_REQUEST' THEN 1 ELSE 0 END) as new_requests,
@@ -59,16 +59,16 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN paid = 1 OR current_status IN ('DELIVERED', 'COMPLETED') THEN COALESCE(service_cost, 0) ELSE 0 END) as total_revenue
       FROM repair_orders
       WHERE is_archived = 0
-    `).get() as Record<string, number>;
+    `).get()) as Record<string, number>;
 
     // Additional global counts
-    const archivedCountRow = db.prepare("SELECT COUNT(*) as count FROM repair_orders WHERE is_archived = 1").get() as { count: number };
-    const waCounts = db.prepare(`
+    const archivedCountRow = (await db.prepare("SELECT COUNT(*) as count FROM repair_orders WHERE is_archived = 1").get()) as { count: number };
+    const waCounts = (await db.prepare(`
       SELECT 
         SUM(CASE WHEN unread_count > 0 THEN 1 ELSE 0 END) as unread_wa,
         SUM(CASE WHEN is_enquiry = 1 AND converted_order_id IS NULL THEN 1 ELSE 0 END) as pending_enquiries
       FROM whatsapp_conversations
-    `).get() as { unread_wa: number; pending_enquiries: number };
+    `).get()) as { unread_wa: number; pending_enquiries: number };
 
     // 2. Build Dynamic Filters
     const whereClauses: string[] = [];
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
       JOIN customer_records cr ON ro.customer_id = cr.id
       ${whereSql}
     `);
-    const { filteredCount } = countStmt.get(...queryParams) as { filteredCount: number };
+    const { filteredCount } = (await countStmt.get(...queryParams)) as { filteredCount: number };
 
     // Sorting column mapping
     let orderColumn = "ro.id";
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
       LIMIT ? OFFSET ?
     `);
 
-    const orders = listStmt.all(...queryParams, limit, offset) as Array<{
+    const orders = (await listStmt.all(...queryParams, limit, offset)) as Array<{
       id: number;
       tracking_id: string;
       device_brand: string;
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
     }>;
 
     // Real Customer directory summary
-    const customersSummary = db.prepare(`
+    const customersSummary = await db.prepare(`
       SELECT 
         cr.id, 
         cr.name, 
@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
     `).all();
 
     // Real device brand breakdown
-    const deviceStats = db.prepare(`
+    const deviceStats = await db.prepare(`
       SELECT device_brand as brand, COUNT(*) as count 
       FROM repair_orders 
       WHERE is_archived = 0
@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
     `).all();
 
     // Real parts / categories breakdown
-    const partsStats = db.prepare(`
+    const partsStats = await db.prepare(`
       SELECT repair_category as category, COUNT(*) as count 
       FROM repair_orders 
       WHERE is_archived = 0
@@ -380,25 +380,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Atomic Transaction: Customer -> Order -> Status History -> Audit Log
-    const result = runInTransaction((db) => {
+    const result = await runInTransaction(async (db) => {
       // 1. Generate Secure Tracking ID (DMR-YYMMDD-XXXX)
-      const trackingId = generateSecureTrackingId(db);
+      const trackingId = await generateSecureTrackingId(db);
 
       // Find or create customer
       let customerId: number;
-      const existingCustomer = db.prepare("SELECT id FROM customer_records WHERE phone = ?").get(cleanPhone) as
-        | { id: number }
+      const existingCustomer = (await db.prepare("SELECT id, location, email FROM customer_records WHERE phone = ?").get(cleanPhone)) as
+        | { id: number; location: string | null; email: string | null }
         | undefined;
 
       if (existingCustomer) {
         customerId = existingCustomer.id;
-        db.prepare(`
+        const finalLoc = customerLocation?.trim() || existingCustomer.location;
+        const finalMail = customerEmail?.trim() || existingCustomer.email;
+        await db.prepare(`
           UPDATE customer_records 
-          SET name = ?, location = COALESCE(?, location), email = COALESCE(?, email), updated_at = datetime('now')
+          SET name = ?, location = ?, email = ?, updated_at = datetime('now')
           WHERE id = ?
-        `).run(customerName.trim(), customerLocation?.trim() || null, customerEmail?.trim() || null, customerId);
+        `).run(customerName.trim(), finalLoc, finalMail, customerId);
       } else {
-        const insertCustomer = db.prepare(`
+        const insertCustomer = await db.prepare(`
           INSERT INTO customer_records (name, phone, location, email, consent_whatsapp, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         `).run(
@@ -412,7 +414,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Insert Repair Order with source = 'ADMIN_CREATED'
-      const insertOrder = db.prepare(`
+      const insertOrder = await db.prepare(`
         INSERT INTO repair_orders (
           tracking_id, customer_id, device_brand, device_model, imei_serial,
           repair_category, reported_issue, inspection_notes, estimated_completion,
@@ -436,14 +438,14 @@ export async function POST(request: NextRequest) {
       const orderId = Number(insertOrder.lastInsertRowid);
 
       // Create Initial Status History (RECEIVED)
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO repair_status_history (
           order_id, previous_status, new_status, customer_note, internal_note, updated_by_admin_id, created_at
         ) VALUES (?, NULL, 'RECEIVED', 'Device checked in at Gandhinagar Technical Center.', ?, ?, datetime('now'))
       `).run(orderId, inspectionNotes?.trim() || "Initial intake inspection completed.", admin.adminId);
 
       // Audit Log
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
         VALUES (?, 'CREATE_ORDER', 'repair_orders', ?, ?, datetime('now'))
       `).run(

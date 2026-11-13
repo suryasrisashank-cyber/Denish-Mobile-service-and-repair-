@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // ── Branch A: Customer Dispatches (Outbound WhatsApp Log) ──
     if (source === "customer_dispatches") {
-      const notifications = db.prepare(`
+      const notifications = await db.prepare(`
         SELECT 
           cn.id,
           cn.order_id,
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         LIMIT 50
       `).all();
 
-      const totalCount = db.prepare("SELECT COUNT(*) as c FROM customer_notifications").get() as { c: number };
+      const totalCount = (await db.prepare("SELECT COUNT(*) as c FROM customer_notifications").get()) as { c: number };
 
       return NextResponse.json({
         success: true,
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-    const notifications = db.prepare(`
+    const notifications = await db.prepare(`
       SELECT 
         an.id,
         an.type,
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     `).all(...params);
 
     // Global category & unread counts
-    const counts = db.prepare(`
+    const counts = (await db.prepare(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread,
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN type = 'STATUS_UPDATE' THEN 1 ELSE 0 END) as status_updates,
         SUM(CASE WHEN type = 'OUTGOING_MESSAGE' THEN 1 ELSE 0 END) as outgoing_messages
       FROM admin_notifications
-    `).get() as Record<string, number>;
+    `).get()) as Record<string, number>;
 
     return NextResponse.json({
       success: true,
@@ -142,17 +142,17 @@ export async function PATCH(request: NextRequest) {
     const db = getDatabase();
 
     if (markAllRead) {
-      db.prepare("UPDATE admin_notifications SET is_read = 1 WHERE is_read = 0").run();
+      await db.prepare("UPDATE admin_notifications SET is_read = 1 WHERE is_read = 0").run();
       return NextResponse.json({ success: true, message: "All notifications marked as read." });
     }
 
     if (clearRead) {
-      db.prepare("DELETE FROM admin_notifications WHERE is_read = 1").run();
+      await db.prepare("DELETE FROM admin_notifications WHERE is_read = 1").run();
       return NextResponse.json({ success: true, message: "Read notifications cleared." });
     }
 
     if (id) {
-      db.prepare("UPDATE admin_notifications SET is_read = 1 WHERE id = ?").run(Number(id));
+      await db.prepare("UPDATE admin_notifications SET is_read = 1 WHERE id = ?").run(Number(id));
       return NextResponse.json({ success: true, message: `Notification #${id} marked as read.` });
     }
 

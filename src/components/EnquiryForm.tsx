@@ -16,6 +16,7 @@ import {
   Copy
 } from "lucide-react";
 import { BUSINESS_CONFIG, SERVICES_LIST, BRANDS } from "@/data/repairData";
+import { parseApiResponse } from "@/lib/parse-api-response";
 
 interface EnquiryFormProps {
   initialIssue?: string;
@@ -129,6 +130,7 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
       return;
     }
 
+    if (isSubmitting) return;
     setErrors({});
     setIsSubmitting(true);
     setSubmissionResult(null);
@@ -140,22 +142,29 @@ export default function EnquiryForm({ initialIssue = "", isStandalonePage = fals
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      const parsed = await parseApiResponse<{
+        trackingId?: string;
+        referenceId?: string;
+        trackingUrl?: string;
+        whatsAppUrl?: string;
+        directWhatsAppUrl?: string;
+        message?: string;
+      }>(response, "Submission failed. Please tap Call Now directly.");
 
-      if (!response.ok || !data.success) {
+      const id = parsed.data?.trackingId || parsed.data?.referenceId;
+      if (!parsed.ok || !parsed.data || !id) {
         setSubmissionResult({
           success: false,
-          error: data.error || "Submission failed. Please tap Call Now directly.",
+          error: parsed.errorMessage || "Submission failed. Please tap Call Now directly.",
         });
       } else {
-        const id = data.trackingId || data.referenceId;
         setSubmissionResult({
           success: true,
           trackingId: id,
           referenceId: id,
-          trackingUrl: data.trackingUrl || `/track-repair?id=${encodeURIComponent(id)}`,
-          directWhatsAppUrl: data.whatsAppUrl || data.directWhatsAppUrl,
-          message: data.message,
+          trackingUrl: parsed.data.trackingUrl || `/track-repair?id=${encodeURIComponent(id)}`,
+          directWhatsAppUrl: parsed.data.whatsAppUrl || parsed.data.directWhatsAppUrl,
+          message: parsed.data.message,
         });
       }
     } catch {

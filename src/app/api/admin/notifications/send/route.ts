@@ -18,12 +18,12 @@ export async function POST(request: NextRequest) {
     const { orderId, mode = "manual", type = "STATUS_UPDATE", customNote } = body;
 
     const db = getDatabase();
-    const order = db.prepare(`
+    const order = (await db.prepare(`
       SELECT ro.*, cr.name as customer_name, cr.phone as customer_phone
       FROM repair_orders ro
       JOIN customer_records cr ON ro.customer_id = cr.id
       WHERE ro.id = ?
-    `).get(orderId) as Record<string, unknown> | undefined;
+    `).get(orderId)) as Record<string, unknown> | undefined;
 
     if (!order) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
