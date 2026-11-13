@@ -30,12 +30,20 @@ function formatYyMmDd(date = new Date()): string {
 }
 
 /**
- * Generates a unique, unpredictable repair reference in format `DMR-YYMMDD-XXXX`.
- * Never embeds customer phone numbers or PII.
+ * Generates a tracking ID / service reference.
+ * When customer mobile number is provided, uses the clean 10-digit mobile number.
  */
 export async function generateSecureTrackingId(
-  customDb?: AppDatabase
+  customDb?: AppDatabase,
+  customerPhone?: string
 ): Promise<string> {
+  if (customerPhone) {
+    const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
+    if (cleanPhone.length === 10) {
+      return cleanPhone;
+    }
+  }
+
   const db = customDb || getDatabase();
   const checkStmt = db.prepare("SELECT 1 FROM repair_orders WHERE tracking_id = ?");
   const datePart = formatYyMmDd();

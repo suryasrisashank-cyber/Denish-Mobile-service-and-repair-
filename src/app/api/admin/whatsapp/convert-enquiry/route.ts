@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAdmin } from "@/lib/auth";
 import { getDatabase, runInTransaction } from "@/lib/db";
-import { generateSecureTrackingId } from "@/lib/trackingId";
 
 export async function POST(request: NextRequest) {
   const admin = await getCurrentAdmin(request);
@@ -62,8 +61,8 @@ export async function POST(request: NextRequest) {
     const finalName = (customerName?.trim() || conv.customer_name || "Valued Customer").trim();
     const cost = serviceCost ? Number(serviceCost) : null;
 
-    // 2. Generate Tracking ID
-    const trackingId = await generateSecureTrackingId();
+    // 2. Use customer mobile number as Tracking ID & Service ID
+    const trackingId = cleanPhone;
 
     // 3. Atomic transaction: Customer -> Repair Order -> Status History -> Update Conversation -> Audit Log
     const result = await runInTransaction(async (txDb) => {

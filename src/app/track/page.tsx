@@ -191,7 +191,7 @@ export default function TrackPage() {
                 htmlFor="tracking-input"
                 className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
               >
-                Service Tracking ID
+                Mobile Number / Tracking ID
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -203,7 +203,7 @@ export default function TrackPage() {
                     type="text"
                     value={trackingId}
                     onChange={(e) => setTrackingId(e.target.value.toUpperCase())}
-                    placeholder="e.g. DMR-261112-K9P3"
+                    placeholder="Enter 10-digit mobile number (e.g. 9666200066)"
                     maxLength={24}
                     autoComplete="off"
                     autoFocus

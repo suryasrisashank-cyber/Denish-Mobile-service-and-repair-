@@ -4,7 +4,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { runInTransaction } from "@/lib/db";
-import { generateSecureTrackingId } from "@/lib/trackingId";
 import { SYSTEM_CONFIG } from "@/lib/constants";
 
 interface RateLimitEntry {
@@ -280,45 +279,35 @@ export async function handleCreateBookingRequest(
         customerId = Number(info.lastInsertRowid);
       }
 
-      let trackingId = "";
-      let orderId = 0;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        try {
-          trackingId = await generateSecureTrackingId(txDb);
-          const info = await txDb
-            .prepare(
-              `INSERT INTO repair_orders (
-                 tracking_id, customer_id, device_brand, device_model,
-                 repair_category, reported_issue, inspection_notes,
-                 preferred_booking_date, preferred_contact_method,
-                 current_status, pickup_ready, source, customer_type, paid, is_archived,
-                 created_at, updated_at
-               ) VALUES (
-                 ?, ?, ?, ?,
-                 ?, ?, 'Registered via online customer booking.',
-                 ?, ?,
-                 'NEW_REQUEST', 0, 'CUSTOMER_WEBSITE', 'Customer', 0, 0,
-                 datetime('now'), datetime('now')
-               )`
-            )
-            .run(
-              trackingId,
-              customerId,
-              deviceBrand,
-              deviceModel,
-              repairService,
-              reportedProblem,
-              appointmentDate || null,
-              preferredContact
-            );
-          orderId = Number(info.lastInsertRowid);
-          break;
-        } catch (dbErr: unknown) {
-          const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
-          if (msg.includes("UNIQUE constraint failed") || msg.includes("unique constraint") || msg.includes("duplicate key")) continue;
-          throw dbErr;
-        }
-      }
+      // Use customer mobile number as both Service ID and Tracking ID
+      const trackingId = cleanPhone;
+      const info = await txDb
+        .prepare(
+          `INSERT INTO repair_orders (
+             tracking_id, customer_id, device_brand, device_model,
+             repair_category, reported_issue, inspection_notes,
+             preferred_booking_date, preferred_contact_method,
+             current_status, pickup_ready, source, customer_type, paid, is_archived,
+             created_at, updated_at
+           ) VALUES (
+             ?, ?, ?, ?,
+             ?, ?, 'Registered via online customer booking.',
+             ?, ?,
+             'NEW_REQUEST', 0, 'CUSTOMER_WEBSITE', 'Customer', 0, 0,
+             datetime('now'), datetime('now')
+           )`
+        )
+        .run(
+          trackingId,
+          customerId,
+          deviceBrand,
+          deviceModel,
+          repairService,
+          reportedProblem,
+          appointmentDate || null,
+          preferredContact
+        );
+      const orderId = Number(info.lastInsertRowid);
 
       if (!orderId) {
         throw new Error("Could not assign unique repair reference.");
@@ -451,7 +440,7 @@ ${trackingUrl}`;
           trackingUrl,
           whatsAppUrl: directWhatsAppUrl,
         },
-        message: "Booking confirmed and saved! Save your repair reference to track live progress.",
+        message: "Booking confirmed and saved! Your mobile number is your Tracking ID & Service ID.",
       },
       { status: options.successStatus || 200 }
     );

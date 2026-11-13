@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAdmin } from "@/lib/auth";
 import { getDatabase, runInTransaction } from "@/lib/db";
 import { REPAIR_STATUSES, RepairStatus } from "@/lib/constants";
-import { generateSecureTrackingId } from "@/lib/trackingId";
 import { generateManualWhatsAppUrl } from "@/lib/whatsapp";
 
 // ── GET /api/admin/orders (Query Real Database Orders with Pagination & Filters) ──
@@ -381,8 +380,8 @@ export async function POST(request: NextRequest) {
 
     // Atomic Transaction: Customer -> Order -> Status History -> Audit Log
     const result = await runInTransaction(async (db) => {
-      // 1. Generate Secure Tracking ID (DMR-YYMMDD-XXXX)
-      const trackingId = await generateSecureTrackingId(db);
+      // 1. Use customer mobile number as Tracking ID & Service ID
+      const trackingId = cleanPhone;
 
       // Find or create customer
       let customerId: number;

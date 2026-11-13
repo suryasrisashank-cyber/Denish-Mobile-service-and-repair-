@@ -182,7 +182,7 @@ export default function TrackRepairPage() {
                 htmlFor="track-reference-input"
                 className="font-label-badge text-xs text-on-surface-variant uppercase font-mono font-semibold block"
               >
-                Repair Reference / Registered Mobile Number
+                Mobile Number / Tracking ID
               </label>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
@@ -192,7 +192,7 @@ export default function TrackRepairPage() {
                     type="text"
                     value={referenceId}
                     onChange={(e) => setReferenceId(e.target.value.toUpperCase())}
-                    placeholder="e.g. DMR-261112-K9P3"
+                    placeholder="Enter 10-digit mobile number (e.g. 9666200066)"
                     maxLength={24}
                     autoComplete="off"
                     className="w-full h-12 pl-10 pr-4 rounded-xl bg-surface-container-lowest border border-white/10 text-on-surface font-mono uppercase tracking-wider text-sm focus:outline-none focus:border-primary transition-colors"
