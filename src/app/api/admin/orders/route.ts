@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl;
+  const tab = searchParams.get("tab"); // "active" | "completed" | "all"
   const statusFilter = searchParams.get("status");
   const dateRange = searchParams.get("dateRange"); // "today" | "7d" | "30d" | "all"
   const sortBy = searchParams.get("sortBy") || "createdAt";
@@ -46,6 +47,8 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN current_status = 'READY_FOR_PICKUP' THEN 1 ELSE 0 END) as ready_for_pickup,
         SUM(CASE WHEN current_status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered,
         SUM(CASE WHEN current_status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
+        SUM(CASE WHEN current_status NOT IN ('COMPLETED', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED') AND paid = 0 THEN 1 ELSE 0 END) as active_orders,
+        SUM(CASE WHEN current_status IN ('COMPLETED', 'READY_FOR_PICKUP', 'DELIVERED') OR paid = 1 THEN 1 ELSE 0 END) as completed_or_paid,
         SUM(CASE WHEN current_status NOT IN ('COMPLETED', 'DELIVERED', 'CANCELLED') THEN 1 ELSE 0 END) as active_repairs,
         SUM(CASE WHEN current_status NOT IN ('COMPLETED', 'DELIVERED', 'CANCELLED') AND (estimated_completion < datetime('now') OR (created_at <= datetime('now', '-3 days') AND current_status != 'READY_FOR_PICKUP')) THEN 1 ELSE 0 END) as overdue_repairs,
         SUM(CASE WHEN customer_type = 'Dealer' THEN 1 ELSE 0 END) as dealer_count,
@@ -79,7 +82,11 @@ export async function GET(request: NextRequest) {
       whereClauses.push("ro.is_archived = 0");
     }
 
-    if (statusFilter && statusFilter !== "ALL") {
+    if (tab === "completed" || statusFilter === "COMPLETED_ORDERS") {
+      whereClauses.push("(ro.current_status IN ('COMPLETED', 'READY_FOR_PICKUP', 'DELIVERED') OR ro.paid = 1)");
+    } else if (tab === "active" || statusFilter === "ACTIVE") {
+      whereClauses.push("ro.current_status NOT IN ('COMPLETED', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED') AND ro.paid = 0");
+    } else if (statusFilter && statusFilter !== "ALL") {
       if (statusFilter === "IN_PROGRESS") {
         whereClauses.push("ro.current_status IN ('UNDER_INSPECTION', 'WAITING_FOR_APPROVAL', 'WAITING_FOR_PARTS', 'REPAIRING', 'QUALITY_CHECK')");
       } else if (statusFilter === "COMPLETED_GROUP") {
@@ -88,6 +95,9 @@ export async function GET(request: NextRequest) {
         whereClauses.push("ro.current_status = ?");
         queryParams.push(statusFilter);
       }
+    } else if (!tab && !statusFilter) {
+      // Default view: Active orders only (automatically removing completed/paid orders)
+      whereClauses.push("ro.current_status NOT IN ('COMPLETED', 'READY_FOR_PICKUP', 'DELIVERED', 'CANCELLED') AND ro.paid = 0");
     }
 
     if (dateRange && dateRange !== "all") {
@@ -245,6 +255,8 @@ export async function GET(request: NextRequest) {
           readyForPickup: metricsRow.ready_for_pickup || 0,
           delivered: metricsRow.delivered || 0,
           cancelled: metricsRow.cancelled || 0,
+          activeOrders: metricsRow.active_orders || 0,
+          completedOrPaid: metricsRow.completed_or_paid || 0,
           inProgress: (metricsRow.under_inspection || 0) + (metricsRow.waiting_for_parts || 0) + (metricsRow.waiting_for_approval || 0) + (metricsRow.repairing || 0) + (metricsRow.quality_check || 0),
           activeRepairs: metricsRow.active_repairs || 0,
           overdueRepairs: metricsRow.overdue_repairs || 0,

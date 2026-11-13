@@ -10,7 +10,7 @@ import {
   Menu, X, User, ChevronRight, ShieldCheck, Eye, Clock,
   ShoppingBag, Bell, Sun, Moon, Laptop, MessageCircle,
   Archive, Send, CheckCheck, Check, Trash2, ArrowUpRight,
-  RefreshCw, Filter
+  RefreshCw, Filter, Users
 } from "lucide-react";
 
 interface AdminUser {
@@ -277,21 +277,22 @@ export default function AdminLayout({
     );
   }
 
-  // 14 Desktop Sidebar Navigation Items strictly matching Phase 3 specification
+  // Desktop Sidebar Navigation Items
   const desktopSidebarItems = [
-    { id: "dashboard", href: "/admin", label: "Dashboard", number: "1", icon: LayoutDashboard },
-    { id: "all_orders", href: "/admin?status=ALL", label: "All Orders", number: "2", icon: ListOrdered },
-    { id: "new_requests", href: "/admin?status=NEW_REQUEST", label: "New Requests", number: "3", icon: Inbox, highlight: true },
-    { id: "received", href: "/admin?status=RECEIVED", label: "Received", number: "4", icon: PackageCheck },
-    { id: "under_inspection", href: "/admin?status=UNDER_INSPECTION", label: "Under Inspection", number: "5", icon: Eye },
-    { id: "repairing", href: "/admin?status=REPAIRING", label: "Repairing", number: "6", icon: Wrench },
-    { id: "waiting_for_parts", href: "/admin?status=WAITING_FOR_PARTS", label: "Waiting for Parts", number: "7", icon: Clock },
-    { id: "completed", href: "/admin?status=COMPLETED", label: "Completed", number: "8", icon: CheckCircle2 },
-    { id: "pickup_ready", href: "/admin?status=READY_FOR_PICKUP", label: "Ready for Pickup", number: "9", icon: ShoppingBag },
-    { id: "delivered", href: "/admin?status=DELIVERED", label: "Delivered", number: "10", icon: Truck },
-    { id: "cancelled", href: "/admin?status=CANCELLED", label: "Cancelled", number: "11", icon: XCircle },
-    { id: "reports", href: "/admin?view=reports", label: "Reports", number: "12", icon: BarChart3 },
-    { id: "settings", href: "/admin?view=settings", label: "Settings", number: "13", icon: Settings },
+    { id: "dashboard", href: "/admin", label: "Active Queue", number: "1", icon: LayoutDashboard },
+    { id: "completed_orders", href: "/admin?tab=completed", label: "Completed & Paid", number: "2", icon: CheckCircle2 },
+    { id: "all_orders", href: "/admin?tab=all", label: "All Orders", number: "3", icon: ListOrdered },
+    { id: "customers", href: "/admin?view=customers", label: "Customers Directory", number: "4", icon: Users },
+    { id: "new_requests", href: "/admin?status=NEW_REQUEST", label: "New Requests", number: "5", icon: Inbox, highlight: true },
+    { id: "received", href: "/admin?status=RECEIVED", label: "Received", number: "6", icon: PackageCheck },
+    { id: "under_inspection", href: "/admin?status=UNDER_INSPECTION", label: "Under Inspection", number: "7", icon: Eye },
+    { id: "repairing", href: "/admin?status=REPAIRING", label: "Repairing", number: "8", icon: Wrench },
+    { id: "waiting_for_parts", href: "/admin?status=WAITING_FOR_PARTS", label: "Waiting for Parts", number: "9", icon: Clock },
+    { id: "pickup_ready", href: "/admin?status=READY_FOR_PICKUP", label: "Ready for Pickup", number: "10", icon: ShoppingBag },
+    { id: "delivered", href: "/admin?status=DELIVERED", label: "Delivered", number: "11", icon: Truck },
+    { id: "cancelled", href: "/admin?status=CANCELLED", label: "Cancelled", number: "12", icon: XCircle },
+    { id: "reports", href: "/admin?view=reports", label: "Reports", number: "13", icon: BarChart3 },
+    { id: "settings", href: "/admin?view=settings", label: "Settings", number: "14", icon: Settings },
   ];
 
   const commsSidebarItems = [

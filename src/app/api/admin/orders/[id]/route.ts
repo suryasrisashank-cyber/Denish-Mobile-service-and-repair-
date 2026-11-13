@@ -544,7 +544,7 @@ export async function PATCH(
   }
 }
 
-// ── DELETE /api/admin/orders/[id] (Soft-Delete / Archive Order) ──
+// ── DELETE /api/admin/orders/[id] (Soft-Delete / Archive or Permanent Delete) ──
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -560,17 +560,45 @@ export async function DELETE(
   }
 
   try {
+    const isPermanent = request.nextUrl.searchParams.get("permanent") === "true";
     const body = await request.json().catch(() => ({}));
+    const permanent = isPermanent || body?.permanent === true;
     const reason = (body?.reason || "Archived by administrator").trim();
 
     const db = getDatabase();
 
-    const existingOrder = (await db.prepare("SELECT id, tracking_id FROM repair_orders WHERE id = ?").get(orderId)) as
-      | { id: number; tracking_id: string }
+    const existingOrder = (await db.prepare("SELECT id, tracking_id, customer_id FROM repair_orders WHERE id = ?").get(orderId)) as
+      | { id: number; tracking_id: string; customer_id: number }
       | undefined;
 
     if (!existingOrder) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
+    }
+
+    if (permanent) {
+      await runInTransaction(async (txDb) => {
+        await txDb.prepare("DELETE FROM repair_status_history WHERE order_id = ?").run(orderId);
+        await txDb.prepare("DELETE FROM customer_notifications WHERE order_id = ?").run(orderId);
+        await txDb.prepare("DELETE FROM admin_notifications WHERE order_id = ?").run(orderId);
+        await txDb
+          .prepare("UPDATE whatsapp_conversations SET converted_order_id = NULL WHERE converted_order_id = ?")
+          .run(orderId);
+        await txDb.prepare("DELETE FROM repair_orders WHERE id = ?").run(orderId);
+
+        await txDb.prepare(`
+          INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, created_at)
+          VALUES (?, 'DELETE_ORDER', 'repair_orders', ?, ?, datetime('now'))
+        `).run(admin.adminId, String(orderId), `Order ${existingOrder.tracking_id} permanently deleted.`);
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          orderId,
+          trackingId: existingOrder.tracking_id,
+          message: "Order permanently deleted.",
+        },
+      });
     }
 
     await runInTransaction(async (txDb) => {
@@ -600,7 +628,7 @@ export async function DELETE(
       },
     });
   } catch (err) {
-    console.error("[ADMIN_ARCHIVE_ORDER_ERROR]", err);
-    return NextResponse.json({ success: false, error: "Failed to archive order" }, { status: 500 });
+    console.error("[ADMIN_DELETE_ORDER_ERROR]", err);
+    return NextResponse.json({ success: false, error: "Failed to delete order" }, { status: 500 });
   }
 }

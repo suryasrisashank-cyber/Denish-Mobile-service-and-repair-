@@ -9,7 +9,7 @@ import {
   RefreshCw, MessageCircle, AlertTriangle, 
   Check, ArrowUpDown, Download, Printer,
   BarChart3, Settings, ShieldCheck,
-  Edit3, Archive, Send
+  Edit3, Archive, Send, Trash2, Users, Wrench, ListOrdered
 } from "lucide-react";
 import { REPAIR_STATUSES, RepairStatus, SYSTEM_CONFIG } from "@/lib/constants";
 import EditOrderModal from "@/components/admin/EditOrderModal";
@@ -18,6 +18,8 @@ import SpecialMessageModal from "@/components/admin/SpecialMessageModal";
 import WhatsAppInboxView from "@/components/admin/WhatsAppInboxView";
 import CustomerMessagesView from "@/components/admin/CustomerMessagesView";
 import ArchivedOrdersView from "@/components/admin/ArchivedOrdersView";
+import DeleteOrderModal from "@/components/admin/DeleteOrderModal";
+import DeleteCustomerModal from "@/components/admin/DeleteCustomerModal";
 
 // Interface for real repair order from database
 interface RepairOrderItem {
@@ -55,6 +57,8 @@ interface RepairOrderItem {
 
 interface DashboardMetrics {
   total: number;
+  activeOrders?: number;
+  completedOrPaid?: number;
   newRequests: number;
   received: number;
   underInspection: number;
@@ -154,9 +158,14 @@ function AdminDashboardContent() {
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<DetailedOrder | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  // New Modals: Edit, Archive, and Special Message
+  // Active Primary Tab: 'active' | 'completed' | 'all'
+  const [activeTab, setActiveTab] = useState<"active" | "completed" | "all">("active");
+
+  // New Modals: Edit, Archive, Delete Order, Special Message, and Delete Customer
   const [orderToEdit, setOrderToEdit] = useState<RepairOrderItem | null>(null);
   const [orderToArchive, setOrderToArchive] = useState<RepairOrderItem | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<RepairOrderItem | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<CustomerSummary | null>(null);
   const [orderForSpecialMessage, setOrderForSpecialMessage] = useState<RepairOrderItem | null>(null);
 
   // Settings State
@@ -204,14 +213,28 @@ function AdminDashboardContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
-  // Synchronize status filter from URL query parameter
+  // Synchronize status and tab filters from URL query parameters
   useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "completed") {
+      setActiveTab("completed");
+    } else if (tabParam === "all") {
+      setActiveTab("all");
+    } else if (tabParam === "active") {
+      setActiveTab("active");
+    }
+
     const statusParam = searchParams.get("status");
     if (statusParam) {
       setSelectedStatus(statusParam);
-    } else {
-      setSelectedStatus("ALL");
+      if (statusParam === "COMPLETED" || statusParam === "COMPLETED_ORDERS" || statusParam === "READY_FOR_PICKUP" || statusParam === "DELIVERED") {
+        setActiveTab("completed");
+      }
+    } else if (!tabParam) {
+      setSelectedStatus("ACTIVE");
+      setActiveTab("active");
     }
+
     const focusParam = searchParams.get("focus");
     if (focusParam === "search") {
       const searchEl = document.getElementById("admin-search-input");
@@ -349,6 +372,7 @@ function AdminDashboardContent() {
       params.set("limit", String(limit));
       params.set("sortBy", sortBy);
       params.set("sortOrder", sortOrder);
+      if (activeTab) params.set("tab", activeTab);
       if (selectedStatus && selectedStatus !== "ALL") params.set("status", selectedStatus);
       if (dateRange && dateRange !== "all") params.set("dateRange", dateRange);
       if (debouncedSearch) params.set("q", debouncedSearch);
@@ -386,7 +410,7 @@ function AdminDashboardContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, selectedStatus, dateRange, sortBy, sortOrder, debouncedSearch, router]);
+  }, [page, limit, activeTab, selectedStatus, dateRange, sortBy, sortOrder, debouncedSearch, router]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -467,7 +491,11 @@ function AdminDashboardContent() {
         throw new Error(json.error || "Failed to update status");
       }
 
-      triggerToast(`Status updated to ${REPAIR_STATUSES[targetStatus]?.label || targetStatus}`);
+      if (targetStatus === "COMPLETED" || targetStatus === "DELIVERED" || editPaid) {
+        triggerToast("Order updated and moved to Completed Orders list.");
+      } else {
+        triggerToast(`Status updated to ${REPAIR_STATUSES[targetStatus]?.label || targetStatus}`);
+      }
       setActiveModalOrder(null);
       await fetchDashboardData();
     } catch (err: unknown) {
@@ -496,7 +524,11 @@ function AdminDashboardContent() {
       });
 
       if (res.ok) {
-        triggerToast(`Order status updated to ${REPAIR_STATUSES[status]?.label || status}`);
+        if (status === "COMPLETED" || status === "DELIVERED") {
+          triggerToast("Order marked completed and moved to Completed Orders list.");
+        } else {
+          triggerToast(`Order status updated to ${REPAIR_STATUSES[status]?.label || status}`);
+        }
         if (selectedOrderForDetails && selectedOrderForDetails.id === orderId) {
           handleOpenOrderDetails({ ...selectedOrderForDetails, currentStatus: status });
         }
@@ -721,6 +753,7 @@ function AdminDashboardContent() {
                     <th className="py-2.5 px-3">Location</th>
                     <th className="py-2.5 px-3">Total Orders</th>
                     <th className="py-2.5 px-3">Total Amount</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -731,6 +764,16 @@ function AdminDashboardContent() {
                       <td className="py-2.5 px-3 text-slate-500">{c.location || "Gandhinagar"}</td>
                       <td className="py-2.5 px-3 font-bold">{c.order_count}</td>
                       <td className="py-2.5 px-3 font-bold text-emerald-600">₹{c.total_spent?.toLocaleString("en-IN") || 0}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => setCustomerToDelete(c)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-[11px] font-bold inline-flex items-center gap-1.5 transition ml-auto"
+                          title="Delete Customer & Orders"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -897,6 +940,89 @@ function AdminDashboardContent() {
       {currentView === "archived" && <ArchivedOrdersView />}
 
       {/* ══════════════════════════════════════════════════════════════════════════
+          VIEW: CUSTOMERS DIRECTORY (?view=customers)
+          ══════════════════════════════════════════════════════════════════════════ */}
+      {currentView === "customers" && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+            <div>
+              <h1 className="text-base font-black uppercase text-slate-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <span>Customer Directory &amp; Records Management</span>
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage registered customer profiles, track order counts, or remove customer records.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold text-xs">
+                {customersSummary.length} Registered Customers
+              </span>
+              <button
+                onClick={fetchDashboardData}
+                disabled={isLoading}
+                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                title="Refresh Customers"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-3">Customer Name</th>
+                    <th className="py-3 px-3">Mobile Number / Service ID</th>
+                    <th className="py-3 px-3">Location</th>
+                    <th className="py-3 px-3">Total Orders</th>
+                    <th className="py-3 px-3">Total Amount</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {customersSummary.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        <div className="font-bold text-slate-700 dark:text-slate-300 text-sm">No Customer Records Found</div>
+                        <div className="text-xs text-slate-500 mt-1">Customer profiles will appear here as orders are submitted.</div>
+                      </td>
+                    </tr>
+                  ) : (
+                    customersSummary.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">{c.name}</td>
+                        <td className="py-3 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                          <a href={`tel:${c.phone}`} className="hover:underline">
+                            {c.phone}
+                          </a>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{c.location || "Gandhinagar"}</td>
+                        <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">{c.order_count} order(s)</td>
+                        <td className="py-3 px-3 font-bold text-emerald-600">₹{c.total_spent?.toLocaleString("en-IN") || 0}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => setCustomerToDelete(c)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 text-xs font-bold inline-flex items-center gap-1.5 transition active:scale-95 shadow-xs"
+                            title="Delete Customer & Orders"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete Customer</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════════
           VIEW 3: DEFAULT ORDERS DASHBOARD (PC Desktop + Mobile Adaptive)
           ══════════════════════════════════════════════════════════════════════════ */}
       {currentView === "orders" && (
@@ -979,6 +1105,72 @@ function AdminDashboardContent() {
                 </Link>
           </div>
         </div>
+
+            {/* Primary Order Tabs: Active Queue vs Completed & Paid Orders vs All Orders */}
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-xs">
+              <button
+                onClick={() => {
+                  setActiveTab("active");
+                  setSelectedStatus("ACTIVE");
+                  setPage(1);
+                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+                  activeTab === "active"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <Wrench className="w-4 h-4" />
+                <span>Active Repair Queue</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "active" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                }`}>
+                  {metrics.activeOrders ?? 0}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("completed");
+                  setSelectedStatus("COMPLETED_ORDERS");
+                  setPage(1);
+                }}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+                  activeTab === "completed"
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Completed &amp; Paid Orders</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "completed" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                }`}>
+                  {metrics.completedOrPaid ?? 0}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("all");
+                  setSelectedStatus("ALL");
+                  setPage(1);
+                }}
+                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+                  activeTab === "all"
+                    ? "bg-slate-800 text-white dark:bg-slate-700 shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <ListOrdered className="w-4 h-4" />
+                <span>All Orders</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                }`}>
+                  {metrics.total ?? 0}
+                </span>
+              </button>
+            </div>
 
             {/* 2. All 11 Real Database Statistics Cards (Interactive Filter Grid) */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2.5">
@@ -1287,10 +1479,17 @@ function AdminDashboardContent() {
                               </a>
                               <button
                                 onClick={() => setOrderToArchive(o)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
                                 title="Archive Order"
                               >
                                 <Archive className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setOrderToDelete(o)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                title="Permanently Delete Order"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                               </button>
                               <button
                                 onClick={() => handleOpenOrderDetails(o)}
@@ -1342,6 +1541,39 @@ function AdminDashboardContent() {
               MOBILE VIEW: Screens < 1024px strictly
               ────────────────────────────────────────────────────────────────── */}
           <div className="block lg:hidden space-y-4">
+
+            {/* Mobile Primary Workflow Tabs */}
+            <div className="grid grid-cols-3 gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-xs text-xs font-bold">
+              <button
+                onClick={() => { setActiveTab("active"); setSelectedStatus("ACTIVE"); setPage(1); }}
+                className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition ${
+                  activeTab === "active" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                <span>Active Queue</span>
+                <span className="text-[10px] opacity-90">{metrics.activeOrders ?? 0}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("completed"); setSelectedStatus("COMPLETED_ORDERS"); setPage(1); }}
+                className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition ${
+                  activeTab === "completed" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                <span>Completed</span>
+                <span className="text-[10px] opacity-90">{metrics.completedOrPaid ?? 0}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("all"); setSelectedStatus("ALL"); setPage(1); }}
+                className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition ${
+                  activeTab === "all" ? "bg-slate-800 text-white dark:bg-slate-700 shadow-xs" : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                <span>All Orders</span>
+                <span className="text-[10px] opacity-90">{metrics.total ?? 0}</span>
+              </button>
+            </div>
 
             {/* 1. Mobile Dashboard: 4 Compact Summary Cards (Clean 2-Column Grid) */}
             <div className="grid grid-cols-2 gap-2.5">
@@ -1558,7 +1790,7 @@ function AdminDashboardContent() {
                 </div>
 
                     {/* Touch-Friendly Action Buttons (>= 44px min height) */}
-                    <div className="grid grid-cols-4 gap-1.5 pt-1">
+                    <div className="grid grid-cols-5 gap-1 pt-1">
                       <button
                         onClick={() => handleOpenOrderDetails(o)}
                         className="min-h-[44px] py-2 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] flex items-center justify-center transition active:scale-95"
@@ -1586,6 +1818,14 @@ function AdminDashboardContent() {
                         <MessageCircle className="w-3.5 h-3.5" />
                         <span>Chat</span>
                       </a>
+                      <button
+                        onClick={() => setOrderToDelete(o)}
+                        className="min-h-[44px] py-2 px-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 font-bold text-[11px] flex items-center justify-center gap-1 transition active:scale-95"
+                        title="Delete Order"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Del</span>
+                      </button>
                 </div>
               </div>
                 ))
@@ -1788,7 +2028,7 @@ function AdminDashboardContent() {
         </div>
 
             {/* Actions */}
-            <div className="pt-2 grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs">
+            <div className="pt-2 grid grid-cols-2 sm:grid-cols-6 gap-1.5 text-xs">
               <button
                 onClick={() => {
                   const o = selectedOrderForDetails;
@@ -1817,10 +2057,21 @@ function AdminDashboardContent() {
                   setSelectedOrderForDetails(null);
                   setOrderToArchive(o);
                 }}
-                className="py-2.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold flex items-center justify-center gap-1 transition"
+                className="py-2.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-bold flex items-center justify-center gap-1 transition"
               >
                 <Archive className="w-3.5 h-3.5" />
                 <span>Archive</span>
+              </button>
+              <button
+                onClick={() => {
+                  const o = selectedOrderForDetails;
+                  setSelectedOrderForDetails(null);
+                  setOrderToDelete(o);
+                }}
+                className="py-2.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 rounded-xl font-bold flex items-center justify-center gap-1 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>Delete</span>
               </button>
               <a
                 href={`https://wa.me/${selectedOrderForDetails.customer.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello ${selectedOrderForDetails.customer.name}, update on your ${selectedOrderForDetails.deviceModel} (Tracking ID: ${selectedOrderForDetails.trackingId}) at Denish Mobile Care.`)}`}
@@ -1841,7 +2092,7 @@ function AdminDashboardContent() {
               >
                 Update
               </button>
-        </div>
+            </div>
 
       </div>
     </div>
@@ -2015,6 +2266,30 @@ function AdminDashboardContent() {
           order={orderForSpecialMessage}
           onClose={() => setOrderForSpecialMessage(null)}
           onSent={fetchDashboardData}
+        />
+      )}
+
+      {/* ── DELETE ORDER MODAL ── */}
+      {orderToDelete && (
+        <DeleteOrderModal
+          order={orderToDelete}
+          onClose={() => setOrderToDelete(null)}
+          onDeleted={() => {
+            triggerToast("Repair order deleted permanently.");
+            fetchDashboardData();
+          }}
+        />
+      )}
+
+      {/* ── DELETE CUSTOMER MODAL ── */}
+      {customerToDelete && (
+        <DeleteCustomerModal
+          customer={customerToDelete}
+          onClose={() => setCustomerToDelete(null)}
+          onDeleted={() => {
+            triggerToast(`Customer ${customerToDelete.name} and records deleted.`);
+            fetchDashboardData();
+          }}
         />
       )}
 
