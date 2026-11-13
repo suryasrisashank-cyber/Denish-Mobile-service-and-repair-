@@ -13,24 +13,15 @@ for (const line of envContent.split("\n")) {
 const sql = neon(dbUrl, { fullResults: true });
 
 async function check() {
-  await sql.query("DELETE FROM repair_status_history WHERE order_id = 66");
-  await sql.query("DELETE FROM customer_notifications WHERE order_id = 66");
-  await sql.query("DELETE FROM admin_notifications WHERE order_id = 66");
-  await sql.query("DELETE FROM repair_orders WHERE id = 66");
-  await sql.query("DELETE FROM customer_records WHERE phone = '9848022338'");
-
-  const orders = await sql.query(`
-    SELECT ro.id, ro.tracking_id, ro.device_brand, ro.device_model, ro.current_status, ro.is_archived, cr.id as customer_id, cr.name as customer_name, cr.phone 
+  const allOrders = await sql.query(`
+    SELECT ro.id, ro.tracking_id, ro.device_brand, ro.device_model, ro.current_status, ro.paid, ro.is_archived, cr.id as customer_id, cr.name as customer_name, cr.phone 
     FROM repair_orders ro 
     JOIN customer_records cr ON ro.customer_id = cr.id
     ORDER BY ro.id ASC
   `);
-  console.log("Orders count:", orders.rows.length);
-  console.log("Orders:", JSON.stringify(orders.rows, null, 2));
-
-  const custs = await sql.query("SELECT id, name, phone, location FROM customer_records ORDER BY id ASC");
-  console.log("Customers count:", custs.rows.length);
-  console.log("Customers:", JSON.stringify(custs.rows, null, 2));
+  console.log("All repair_orders in Neon:", allOrders.rows);
+  const allCusts = await sql.query("SELECT id, name, phone, location FROM customer_records ORDER BY id ASC");
+  console.log("All customer_records in Neon:", allCusts.rows);
 }
 
 check().catch(console.error);
